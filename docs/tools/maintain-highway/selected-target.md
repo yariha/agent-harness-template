@@ -6,8 +6,8 @@
 
 전달받은 토픽을 먼저 한 문장으로 고정한다.
 
-- 기능/도메인: 예) 조직 권한 preset 적용 흐름
-- 소스 범위: 예) `apps/backend/src/...`, 특정 controller/service/hook
+- 기능/도메인: 예) 조회 계획 수립 흐름
+- 소스 범위: 예) `agent/tools/...`, 특정 prompt/tool/러너
 - 변경 범위: 예) 현재 브랜치 diff, 특정 commit, PR 변경점
 - 문서 범위: 예) 특정 topic 문서의 stale claim
 
@@ -30,8 +30,8 @@
 
 전달받은 타겟이 넓으면 같은 문맥 안에서만 좁힌다.
 
-- 파일보다 넓으면 route, page, controller, service, hook 중 핵심 entrypoint를 고른다.
-- 기능보다 넓으면 데이터 흐름, 권한 경계, UI 흐름, 테스트 경계 중 하나로 고른다.
+- 파일보다 넓으면 prompt, tool, 러너, 설정 중 핵심 entrypoint를 고른다.
+- 기능보다 넓으면 데이터 흐름, 권한 경계, 평가 경계, 테스트 경계 중 하나로 고른다.
 - 브랜치/커밋이면 변경 파일 중 문서 claim을 바꿀 가능성이 큰 범위를 고른다.
 
 타겟 밖의 흥미로운 영역은 조사하지 않고 'selected target' follow-up으로 남긴다.

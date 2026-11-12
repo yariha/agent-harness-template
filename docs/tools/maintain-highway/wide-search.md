@@ -19,7 +19,7 @@
 문서 구조의 간극에서 5개 안팎의 후보를 만든다.
 후보는 넓고 얕은 라우팅 문제여야 한다.
 
-- Source Map 누락: 실제 `apps/*`, `docs/*` 구조와 `SSOT.md`가 다름
+- Source Map 누락: 실제 `agent/`, `knowledge/`, `evals/`, `docs/*` 구조와 `SSOT.md`가 다름
 - Reference Map 누락: 새 문서나 폴더가 상위 `INDEX.md`에서 발견되지 않음
 - ownership 불명확: topic 문서가 어느 main/sub 영역 소유인지 애매함
 - router 과밀: `SSOT.md` 또는 `INDEX.md`가 구현 세부를 담아 길어짐
@@ -43,7 +43,7 @@
 1. `docs/SSOT.md` Source Map과 Reference Map
 2. 관련 main/sub `INDEX.md`
 3. 실제 `docs/*` 파일과 폴더 위치
-4. 필요한 경우 실제 `apps/*` entrypoint 존재 여부
+4. 필요한 경우 실제 코드 entrypoint 존재 여부
 5. 기존 topic 문서의 소유 영역과 링크 경로
 6. 라인 기준: 기준형 60줄, topic 100줄
 

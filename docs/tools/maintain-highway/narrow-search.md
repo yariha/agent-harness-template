@@ -19,11 +19,11 @@
 최근 커밋과 기존 문서의 간극에서 5개 안팎의 후보를 만든다.
 후보는 다양한 형태가 될 수 있다.
 
-- 기술적 개념: auth guard, realtime payload, cache invalidation
-- 소스 폴더: `apps/<app>/src/...`
-- 소스 파일: controller, service, hook, modal, schema, DTO
+- 기술적 개념: query planning, retrieval routing, KI serving
+- 소스 폴더: `agent/tools/...`, `evals/...`
+- 소스 파일: prompt, tool 정의, 러너, schema
 - 구조적 개념: 라우팅, 권한 경계, 데이터 흐름, 테스트 런타임
-- 아키텍처상 개념: app boundary, integration failure mode, tenant/조직 scope
+- 아키텍처상 개념: 에이전트 경계, failure mode, 데이터 접근 scope
 - 문서 claim: 현재 문서가 오래됐거나 너무 넓게 말하는 문장
 
 후보는 “확인하면 문서가 더 정확해질 가능성”이 있어야 하며, 이미 명확하고 최근 조사된 영역은 피한다.

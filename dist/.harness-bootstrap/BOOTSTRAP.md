@@ -1,6 +1,6 @@
 # HARNESS BOOTSTRAP — 프로젝트 하네스 설치 절차
 
-> 진입점 `CLAUDE.md`(설치 전 임시본)가 이 파일을 가리킨다. 키트 본체는 같은 폴더의 `kit.txt`(파일 102개, 2026-11-12 생성)이며, **Read로 열지 않고** 2단계 스크립트로만 푼다.
+> 진입점 `CLAUDE.md`(설치 전 임시본)가 이 파일을 가리킨다. 키트 본체는 같은 폴더의 `kit.txt`(파일 96개, 2026-11-12 생성)이며, **Read로 열지 않고** 2단계 스크립트로만 푼다.
 
 ---
 
@@ -35,7 +35,7 @@
 
 1. `pwd`, `ls -la`, `git rev-parse --show-toplevel 2>/dev/null`.
 2. `CLAUDE.md`·`.harness-bootstrap/` 외에 코드가 있는지 판단한다: **빈 프로젝트** / **기존 코드 있음**.
-3. 기존 코드가 있으면 스택을 직접 파악한다: `package.json`, `pnpm-workspace.yaml`, `pyproject.toml`, `requirements*.txt`, `Cargo.toml`, `go.mod`, `*.xcodeproj`, `Package.swift`, `build.gradle*` 등. 앱/패키지 경계(`apps/*`, `packages/*`, `src/`, `services/*`), 테스트 러너, dev server 명령, `.env*` 파일 목록을 확인한다.
+3. 기존 코드가 있으면 스택을 직접 파악한다: `package.json`, `pyproject.toml`, `requirements*.txt`, `Cargo.toml`, `go.mod`, `*.xcodeproj`, `Package.swift`, `build.gradle*` 등. 앱/패키지 경계(`apps/*`, `packages/*`, `src/`, `services/*`), 테스트 러너, dev server 명령, `.env*` 파일 목록을 확인한다.
 4. git 저장소가 아니면 `git init`을 제안한다(사용자 승인 후). `open-worktree`·`close-worktree`·`maintain-highway selected` 모드는 git이 있어야 동작한다. 거부하면 리포트에 그렇게 적는다. git을 쓰면 `.gitignore`에 `artifacts/reports/`를 넣을지도 이때 함께 묻는다(원본 하네스는 report를 gitignore한다).
 
 ### 1단계 — 인터뷰 (코드로 알 수 없는 것만, 한 번에 최대 4문항)
@@ -46,9 +46,9 @@ AskUserQuestion 같은 선택형 도구가 있으면 그것을 쓴다. 기존 �
 | --- | --- | --- |
 | 프로젝트 이름·한 줄 목적 | 묻는다 | README에서 추론, 없으면 묻는다 |
 | 스택·런타임 | 묻는다 (추천안 1개 제시) | 직접 확인 |
-| 구조: 단일 앱 / 모노레포(앱 목록) | 묻는다 | 직접 확인 |
+| 구조: 에이전트 단독 / 에이전트 + 응용 코드(영역 목록) | 묻는다 | 직접 확인 |
 | 되돌리기 어려운 변경 (허락 필수) | 묻는다. 추천: DB schema/migration, 배포, 결제·외부 발송, 비밀값 | 코드에서 후보를 찾아 제시하고 확인 |
-| 도메인 고유 규칙 (금지 패턴, UI 라이브러리 강제 등) | 없으면 비워둔다 | 있으면 묻는다 |
+| 도메인 고유 규칙 (금지 패턴, read-only 접근 강제 등) | 없으면 비워둔다 | 있으면 묻는다 |
 | 테스트 명령·제약: 테스트 워커 수(예: `--maxWorkers=2`)와 동시에 띄울 워크트리 수를 구분해 적는다 | 스택 기본값 제안 | 직접 확인 후 확인만 |
 | 에이전트의 데이터 소스 (정형 DB / RAG / 둘 다), 쓰기 작업 여부 | 묻는다 | 코드에서 확인 후 확인만 |
 | 분석 케이스 보유 (사람의 분석 문서 + 당시 raw data): 대략 건수, raw data 유무 | 묻는다 | 묻는다 |
@@ -58,7 +58,7 @@ AskUserQuestion 같은 선택형 도구가 있으면 그것을 쓴다. 기존 �
 
 ```text
 PROJECT_NAME / 목적 / 스택 / 패키지 매니저 / 구조(영역 목록: 이름 → 코드 경로) /
-허락 필수 변경 / 도메인 규칙 / 데이터 소스·쓰기 여부 / 분석 케이스(건수·raw data 유무) / 테스트 명령·동시성 / dev server(이름·명령·포트) / 환경 선택지
+허락 필수 변경 / 도메인 규칙 / 데이터 소스·쓰기 여부 / 분석 케이스(건수·raw data 유무) / 테스트 명령·동시성 / 환경 선택지
 ```
 
 ### 2단계 — 파일 풀기
@@ -96,18 +96,16 @@ SKIPPED 목록이 있으면 사용자에게 보여주고 병합 방법을 묻는
    - 제목의 `<PROJECT_NAME>`.
    - Core Principles: 허락 필수 변경을 프로필대로(여러 개면 한 줄에 나열), `<핵심 계층>`을 실제 핵심 계층으로, 도메인 규칙 줄은 규칙이 없으면 **줄을 삭제**한다.
    - 테스트 실행 규칙: 실제 테스트 명령과 동시성 제약 한 줄.
-   - Source Map: 영역마다 한 행(이름 → 실제 경로). 단일 앱이면 `src/` 같은 실제 경로 1~2행. `pnpm-workspace.yaml` 등 존재하지 않는 파일은 실제 루트 설정 파일로 바꾼다.
-   - Reference Map: 영역마다 `[<area>/INDEX.md](./<area>/INDEX.md)` 행.
+   - Source Map: AgentOps 행(`agent/`, `knowledge/`, `evals/`, `ops/` 등)은 그대로 둔다. 응용 코드 영역이 있으면 영역마다 한 행(이름 → 실제 경로)을 채우고, 없으면 자리표시자 행을 삭제한다.
+   - Reference Map: 응용 코드 영역 INDEX를 만들었으면 영역마다 한 행을 추가한다.
    - 60줄 이하 유지.
-2. **영역 INDEX**: 영역마다 `docs/_area_template/INDEX.md`를 `docs/<area>/INDEX.md`로 복사해 채운다. Commands는 실제 스택 명령(pnpm/npm/uv/poetry/cargo/go/xcodebuild 등)으로, 빈 프로젝트면 계획된 명령을 쓰고 `(계획)` 표기. 다 만든 뒤 `docs/_area_template/`을 삭제한다.
-3. **`docs/ARCHITECTURE.md`, `docs/share/INDEX.md`**: 한 줄씩 채운다. 빈 프로젝트면 계획된 구조를 쓰고 `(계획)` 표기. 아직 없는 topic 링크 행(`WORKSPACE_CI.md`, `<TOPIC>.md` 등)은 삭제한다. 영역이 하나뿐이면 share 본문은 "현재 단일 앱: 공통 계약 없음" 한 줄로 두고, Reference Map에는 그 영역 INDEX(`../<area>/INDEX.md`) 한 행만 남긴다. SSOT의 share 링크는 그대로 둔다.
-4. **`docs/tools/open-worktree/SKILL.md`**: 환경 선택지와 env 파일 경로를 프로필대로 고정한다. 설치 명령(`pnpm install --frozen-lockfile`)을 실제 패키지 매니저로 바꾼다. DB가 없으면 DB 분기를 지운다.
-5. **`.claude/launch.json`**: dev server를 실제 이름·명령·포트로. 서버가 없는 프로젝트(CLI·라이브러리)면 `configurations`를 빈 배열로.
-6. **`ci/`**: jest/vitest 기반 동결 목록 장치다.
-   - JS/TS 프로젝트: `ci/test-filters.mjs`의 `APPS` 상수와 usage 문구, `ci/known-failures.json`의 앱 키를 영역 이름에 맞춘다. `_measuredAt`은 실측 전이면 `TODO(첫 CI 실측 커밋 sha)`로 둔다. 테스트(`ci/test-filters.test.mjs`)의 앱 이름·예시 경로(`src/api/user/...` 등)도 맞춘다. 단일 앱이면 두 번째 앱 전용 테스트는 지우고 앱 경로는 실제 루트(`.` 등)로 둔다.
-   - 그 외 스택: 사용자에게 묻는다. 기본 추천은 `ci/test-filters*.mjs`와 `ci/known-failures.json`만 삭제하고(`check-harness`·`eval-gate`는 node만 있으면 스택과 무관하게 동작하므로 남긴다) SSOT에 해당 스택의 동등 장치(예: pytest `--deselect` 목록)를 TODO로 남기는 것.
+2. **영역 INDEX**: 응용 코드 영역이 있으면 영역마다 `docs/<area>/INDEX.md`를 만든다. 구성은 한 줄 설명, Commands(실제 스택 명령), Runtime(필수 env), Source Map(폴더 → 책임), Reference Map이며 60줄 이내다. 빈 프로젝트면 계획된 명령을 쓰고 `(계획)` 표기. 에이전트 단독 프로젝트면 생략한다.
+3. **`docs/ARCHITECTURE.md`**: 한 줄씩 채운다. 빈 프로젝트면 계획된 구조를 쓰고 `(계획)` 표기.
+4. **`docs/tools/open-worktree/SKILL.md`**: 환경 선택지와 env 파일 경로를 프로필대로 고정한다. 의존성 설치 명령 자리표시자를 실제 패키지 매니저 명령으로 채운다. DB가 없으면 DB 분기를 지운다.
+5. **`agent/MODELS.md`**: 기반 모델·판정 모델이 정해졌으면 표의 예시 행을 실제 행으로 바꾼다. 미정이면 예시 행을 지우고 `TODO(모델 배분)`를 남긴다.
+6. **`ci/`**: `check-harness.mjs`·`eval-gate.mjs`는 node만 있으면 스택과 무관하게 동작한다. 수정하지 않는다. node가 없는 환경이면 사용자에게 알리고 리포트의 TODO로 남긴다.
 7. **`.claude/agents/code-generator.md`**: 예시의 도메인 표현만 프로젝트에 맞게 손본다. 모델·절차는 유지.
-8. **도메인 예시**: 원본 프로젝트의 예시 문장(원본 도메인 표현 등)이 남은 곳을 이 프로젝트 도메인 예시로 바꾼다. 절차 문장은 바꾸지 않는다. 대상: `docs/tools/clarify-pre-spec/SKILL.md`의 "허용 질문 예시" 블록, `docs/tools/maintain-highway/selected-target.md`의 "기능/도메인: 예)" 줄, `.claude/agents/code-generator.md`의 description 예시(예시 맥락 "React component" 등이 스택과 맞지 않으면 맥락도 함께), `ci/test-filters.test.mjs`의 앱 이름(`frontend` 등). 확인: 5단계의 도메인 예시 grep.
+8. **도메인 예시**: 템플릿의 예시 문장이 남은 곳을 이 프로젝트 도메인 예시로 바꾼다. 절차 문장은 바꾸지 않는다. 대상: `docs/tools/clarify-pre-spec/SKILL.md`의 "허용 질문 예시" 블록, `docs/tools/maintain-highway/selected-target.md`의 "기능/도메인: 예)" 줄, `.claude/agents/code-generator.md`의 description 예시(스택과 맞지 않으면 맥락도 함께). 확인: 5단계의 예시 문장 grep(`clarify-pre-spec` 블록).
 9. **방법론 파일**(`docs/tools/empirical-coding/**`, `docs/tools/prune-harness/**`, `docs/agentops/**`)과 AgentOps 스킬(`distill-knowledge`, `case-from-ki`, `log-change`, `run-evals`, `promote-evolution`, `review-knowledge`)은 수정하지 않는다. 범용이다.
 10. **AgentOps 층**
    - `agent/`, `knowledge/`, `evals/`, `ops/`, `evolution/`의 `_TEMPLATE` 파일과 빈 `INDEX.md` 표는 그대로 둔다. `evals/baseline.json`·`evals/splits.json`은 비워 둔다(측정·분할 전).
@@ -125,11 +123,10 @@ SKIPPED 목록이 있으면 사용자에게 보여주고 병합 방법을 묻는
 ### 5단계 — 검증 (모두 통과해야 다음 단계로)
 
 ```bash
-# 남은 자리표시자: 결과 없음이어야 함. Artifact Rules 파일명 패턴(<topic>, <major> 등)과 Doc Rules의 일반 표기(<MAIN_AREA>), known-failures `_comment`의 <date>는 정상이라 제외한다. TODO(...)는 허용.
-grep -rn '<[^>]*>' docs/SSOT.md docs/*/INDEX.md docs/ARCHITECTURE.md .claude/launch.json docs/tools/open-worktree/SKILL.md $( [ -f ci/known-failures.json ] && echo ci/known-failures.json ) | grep -vE '<(topic|sub-topic|attachment|major|minor|patch|MAIN_AREA|SUB_AREA|date)>'
+# 남은 자리표시자: 결과 없음이어야 함. Artifact Rules 파일명 패턴(<topic>, <major> 등)과 Doc Rules의 일반 표기(<MAIN_AREA>)는 정상이라 제외한다. TODO(...)는 허용.
+grep -rn '<[^>]*>' docs/SSOT.md docs/*/INDEX.md docs/ARCHITECTURE.md agent/MODELS.md docs/tools/open-worktree/SKILL.md | grep -vE '<(topic|sub-topic|attachment|major|minor|patch|MAIN_AREA|SUB_AREA|date)>'
 wc -l docs/SSOT.md docs/*/INDEX.md                                   # 각 60 이하
-test ! -d docs/_area_template && echo ok                             # 영역 템플릿 삭제됨
-grep -rniE '일반 회원 목록|조직 권한 preset|customer order|sales statistics|src/api/user' docs .claude $( [ -d ci ] && echo ci ) || echo ok   # 템플릿 예시 문장 없음 (이 프로젝트 도메인과 같으면 결과를 눈으로 판단)
+grep -rniE '일반 회원 목록|주문 기록은 관리 확인용|조직 관리자에게만' docs .claude || echo ok   # 템플릿 예시 문장 없음 (이 프로젝트 도메인과 같으면 결과를 눈으로 판단)
 node --test ci/*.test.mjs                                            # CI 장치 자체 테스트
 node ci/check-harness.mjs && node ci/eval-gate.mjs                   # 하네스 무결성, 평가 게이트(측정 전 통과)
 ```

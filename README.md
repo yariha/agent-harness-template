@@ -17,7 +17,7 @@ docs/                     문서 지도: SSOT → 영역 INDEX → topic
   agentops/               방법론: 지식 라이프사이클, 변경 순환, Bootstrapping, 용어
   adaptation/             시나리오별 구조 수정 가이드, 자동화 수준
   tools/                  절차 스킬 본문
-agent/                    진화 대상: prompts · skills · tools · retrieval
+agent/                    진화 대상: prompts · skills · tools · retrieval, 모델 배분(MODELS.md)
 knowledge/                Knowledge Base
   raw/                    원본 (수정 금지): cases · reports · schemas · transcripts
   domain/                 사람의 판단: Decision Heuristic · Exception · Glossary
