@@ -1,0 +1,9 @@
+{
+  "id": "A-0000",
+  "suite": "analysis",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}

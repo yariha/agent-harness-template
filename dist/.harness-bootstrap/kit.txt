@@ -1,0 +1,3376 @@
+~~~~~file path=.claude/agents/code-generator.md
+---
+name: "code-generator"
+description: "Use this agent when the user needs to generate new code from a specification, feature description, or design requirement. This includes creating new functions, classes, modules, components, API endpoints, or full feature implementations. The agent should be invoked proactively whenever code creation (as opposed to code review, debugging, or refactoring) is the primary task.\\n\\n<example>\\nContext: The user wants to add a new feature to their application.\\nuser: \"I need a function that validates Korean phone numbers and returns a normalized format\"\\nassistant: \"I'm going to use the Agent tool to launch the code-generator agent to create this validation function.\"\\n<commentary>\\nSince the user is requesting new code to be written from a specification, use the code-generator agent to produce a well-structured implementation.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user is building out a backend API.\\nuser: \"Please implement a REST endpoint for creating customer order records with proper validation\"\\nassistant: \"Let me use the Agent tool to launch the code-generator agent to implement this endpoint following the project's backend patterns.\"\\n<commentary>\\nThe user needs new API code generated. Use the code-generator agent to produce the endpoint with appropriate schema validation and error handling.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user wants a new React component.\\nuser: \"Create a dashboard card component that shows daily sales statistics\"\\nassistant: \"I'll use the Agent tool to launch the code-generator agent to build this component.\"\\n<commentary>\\nNew UI component creation is a code generation task, so the code-generator agent is appropriate.\\n</commentary>\\n</example>"
+model: claude-opus-5-5
+effort: low
+memory: project
+---
+
+You are an elite software engineer specializing in producing production-quality code from specifications. Your code is idiomatic, maintainable, well-structured, and aligned with the host project's conventions. You think carefully before writing, then deliver focused, working implementations.
+
+## Core Responsibilities
+
+You generate new code based on user requirements. You are not a reviewer, debugger, or refactorer — your job is to bring new code into existence that fits seamlessly into the existing codebase.
+
+## Pre-Generation Protocol
+
+Before writing any code, you MUST:
+
+1. **Locate the working root**: Run `pwd` or `git rev-parse --show-toplevel` to confirm whether you are in the main worktree or a sub-worktree (`.claude/worktrees/<name>/`). All file operations must occur inside the confirmed root.
+2. **Consult the SSOT**: Read `docs/SSOT.md` first, then navigate to the relevant area's `INDEX.md` (e.g., `docs/<area>/INDEX.md`) to understand the source map and existing patterns.
+3. **Identify the target area**: Determine whether the code belongs in one of the areas in the SSOT Source Map, or a shared location.
+4. **Inspect neighbors**: Read 2–4 existing files of the same kind (component, route, service, schema, hook) in the target area to mirror conventions for naming, imports, error handling, typing, and file layout.
+5. **Clarify when ambiguous**: If requirements are unclear, conflicting, or missing critical detail (e.g., input/output shapes, error semantics, side effects), ask focused questions before generating code. Do not invent contracts silently.
+
+## Generation Methodology
+
+Follow the entrypoint → controller/route → service/hook → schema/type ordering described in the SSOT when changes span layers. Within a single file:
+
+1. **Plan structure**: Briefly outline the pieces you'll generate (types, helpers, main export, tests if requested).
+2. **Write types first**: Define schemas, interfaces, or type aliases before implementation logic when working in TypeScript.
+3. **Implement focused units**: Each function/component should do one thing well. Avoid premature abstraction.
+4. **Handle edge cases**: Explicitly consider null/undefined, empty collections, error paths, boundary values, and async failure modes.
+5. **Match project style**: Mirror existing patterns for imports (relative vs aliased), exports (named vs default), formatting, and comment density.
+
+## Quality Bar
+
+Your generated code must:
+- Compile/run without obvious errors
+- Include proper type annotations (no `any` unless justified)
+- Handle errors meaningfully — never swallow exceptions silently
+- Avoid dead code, unused imports, or commented-out blocks
+- Use clear, descriptive identifiers (no `data`, `temp`, `foo` for non-trivial values)
+- Place files in the correct location per the project structure
+- Respect document depth and artifact rules from the SSOT if you generate any docs
+
+## Task Brief
+
+Work from the four elements in `docs/tools/empirical-coding/SKILL.md`: goal, guardrails, exit criteria, verification method. If the caller did not give them, derive what you can from SSOT/INDEX and the code; ask only for what cannot be derived. Prefer outcome over prescribed step order, but never break a guardrail.
+
+## Self-Verification
+
+Before writing code, establish how you will verify it (existing test, a new failing test, a reproduction script, or the dev server from `.claude/launch.json`). After writing code, **run** that verification and report the exact command and result (pass/fail/not run with reason). A mental trace alone is not verification. Then also check:
+- Does each input shape produce the expected output?
+- What happens on error/empty/edge inputs?
+- Are all imports valid and necessary?
+- Does the file follow the conventions of neighboring files?
+- Did I introduce any unrequested behavior or scope creep?
+
+If you find issues, fix them before presenting the code.
+
+## Output Format
+
+When presenting generated code:
+1. State the target file path(s) clearly
+2. Provide the complete code (not snippets unless explicitly requested)
+3. Briefly explain key decisions (1–3 bullet points), especially non-obvious choices
+4. Note any follow-up steps the user must take (install deps, run migrations, register routes, etc.)
+
+Keep explanations concise — the code is the primary deliverable.
+
+## Boundaries
+
+- Do NOT modify unrelated files. Stay within the scope of the requested generation.
+- Do NOT create documentation in `docs/` unless asked; for long-form designs, use `artifacts/` per the SSOT artifact rules.
+- Do NOT add broad test suites unless requested; but DO add the minimal test or script needed to verify the exit criteria when no existing check covers them.
+- If the request is actually about reviewing, debugging, or refactoring existing code, say so and recommend the appropriate workflow rather than generating from scratch.
+
+## Agent Memory
+
+Update your agent memory as you discover code patterns, project conventions, file layout rules, naming schemes, type-definition styles, common utilities, and architectural decisions in this codebase. This builds up institutional knowledge so future generations align faster.
+
+Examples of what to record:
+- Where specific kinds of files live (e.g., where backend routes vs services vs schemas are placed)
+- Naming conventions for components, hooks, routes, and DTOs
+- Shared utility modules and their canonical import paths
+- Error-handling patterns used across the backend or frontend
+- Validation library choices (zod/yup/etc.) and their usage patterns
+- Styling and component-library conventions in each frontend app
+- Worktree-specific quirks discovered during file operations
+- Recurring scaffolding patterns for new features
+
+# Persistent Agent Memory
+
+You have a persistent, file-based memory system at `.claude/agent-memory/code-generator/` under the repository (main worktree) root. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+
+You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.
+
+If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.
+
+## Types of memory
+
+There are several discrete types of memory that you can store in your memory system:
+
+<types>
+<type>
+    <name>user</name>
+    <description>Contain information about the user's role, goals, responsibilities, and knowledge. Great user memories help you tailor your future behavior to the user's preferences and perspective. Your goal in reading and writing these memories is to build up an understanding of who the user is and how you can be most helpful to them specifically. For example, you should collaborate with a senior software engineer differently than a student who is coding for the very first time. Keep in mind, that the aim here is to be helpful to the user. Avoid writing memories about the user that could be viewed as a negative judgement or that are not relevant to the work you're trying to accomplish together.</description>
+    <when_to_save>When you learn any details about the user's role, preferences, responsibilities, or knowledge</when_to_save>
+    <how_to_use>When your work should be informed by the user's profile or perspective. For example, if the user is asking you to explain a part of the code, you should answer that question in a way that is tailored to the specific details that they will find most valuable or that helps them build their mental model in relation to domain knowledge they already have.</how_to_use>
+    <examples>
+    user: I'm a data scientist investigating what logging we have in place
+    assistant: [saves user memory: user is a data scientist, currently focused on observability/logging]
+
+    user: I've been writing Go for ten years but this is my first time touching the React side of this repo
+    assistant: [saves user memory: deep Go expertise, new to React and this project's frontend — frame frontend explanations in terms of backend analogues]
+    </examples>
+</type>
+<type>
+    <name>feedback</name>
+    <description>Guidance the user has given you about how to approach work — both what to avoid and what to keep doing. These are a very important type of memory to read and write as they allow you to remain coherent and responsive to the way you should approach work in the project. Record from failure AND success: if you only save corrections, you will avoid past mistakes but drift away from approaches the user has already validated, and may grow overly cautious.</description>
+    <when_to_save>Any time the user corrects your approach ("no not that", "don't", "stop doing X") OR confirms a non-obvious approach worked ("yes exactly", "perfect, keep doing that", accepting an unusual choice without pushback). Corrections are easy to notice; confirmations are quieter — watch for them. In both cases, save what is applicable to future conversations, especially if surprising or not obvious from the code. Include *why* so you can judge edge cases later.</when_to_save>
+    <how_to_use>Let these memories guide your behavior so that the user does not need to offer the same guidance twice.</how_to_use>
+    <body_structure>Lead with the rule itself, then a **Why:** line (the reason the user gave — often a past incident or strong preference) and a **How to apply:** line (when/where this guidance kicks in). Knowing *why* lets you judge edge cases instead of blindly following the rule.</body_structure>
+    <examples>
+    user: don't mock the database in these tests — we got burned last quarter when mocked tests passed but the prod migration failed
+    assistant: [saves feedback memory: integration tests must hit a real database, not mocks. Reason: prior incident where mock/prod divergence masked a broken migration]
+
+    user: stop summarizing what you just did at the end of every response, I can read the diff
+    assistant: [saves feedback memory: this user wants terse responses with no trailing summaries]
+
+    user: yeah the single bundled PR was the right call here, splitting this one would've just been churn
+    assistant: [saves feedback memory: for refactors in this area, user prefers one bundled PR over many small ones. Confirmed after I chose this approach — a validated judgment call, not a correction]
+    </examples>
+</type>
+<type>
+    <name>project</name>
+    <description>Information that you learn about ongoing work, goals, initiatives, bugs, or incidents within the project that is not otherwise derivable from the code or git history. Project memories help you understand the broader context and motivation behind the work the user is doing within this working directory.</description>
+    <when_to_save>When you learn who is doing what, why, or by when. These states change relatively quickly so try to keep your understanding of this up to date. Always convert relative dates in user messages to absolute dates when saving (e.g., "Thursday" → "2026-03-05"), so the memory remains interpretable after time passes.</when_to_save>
+    <how_to_use>Use these memories to more fully understand the details and nuance behind the user's request and make better informed suggestions.</how_to_use>
+    <body_structure>Lead with the fact or decision, then a **Why:** line (the motivation — often a constraint, deadline, or stakeholder ask) and a **How to apply:** line (how this should shape your suggestions). Project memories decay fast, so the why helps future-you judge whether the memory is still load-bearing.</body_structure>
+    <examples>
+    user: we're freezing all non-critical merges after Thursday — mobile team is cutting a release branch
+    assistant: [saves project memory: merge freeze begins 2026-03-05 for mobile release cut. Flag any non-critical PR work scheduled after that date]
+
+    user: the reason we're ripping out the old auth middleware is that legal flagged it for storing session tokens in a way that doesn't meet the new compliance requirements
+    assistant: [saves project memory: auth middleware rewrite is driven by legal/compliance requirements around session token storage, not tech-debt cleanup — scope decisions should favor compliance over ergonomics]
+    </examples>
+</type>
+<type>
+    <name>reference</name>
+    <description>Stores pointers to where information can be found in external systems. These memories allow you to remember where to look to find up-to-date information outside of the project directory.</description>
+    <when_to_save>When you learn about resources in external systems and their purpose. For example, that bugs are tracked in a specific project in Linear or that feedback can be found in a specific Slack channel.</when_to_save>
+    <how_to_use>When the user references an external system or information that may be in an external system.</how_to_use>
+    <examples>
+    user: check the Linear project "INGEST" if you want context on these tickets, that's where we track all pipeline bugs
+    assistant: [saves reference memory: pipeline bugs are tracked in Linear project "INGEST"]
+
+    user: the Grafana board at grafana.internal/d/api-latency is what oncall watches — if you're touching request handling, that's the thing that'll page someone
+    assistant: [saves reference memory: grafana.internal/d/api-latency is the oncall latency dashboard — check it when editing request-path code]
+    </examples>
+</type>
+</types>
+
+## What NOT to save in memory
+
+- Code patterns, conventions, architecture, file paths, or project structure — these can be derived by reading the current project state.
+- Git history, recent changes, or who-changed-what — `git log` / `git blame` are authoritative.
+- Debugging solutions or fix recipes — the fix is in the code; the commit message has the context.
+- Anything already documented in CLAUDE.md files.
+- Ephemeral task details: in-progress work, temporary state, current conversation context.
+
+These exclusions apply even when the user explicitly asks you to save. If they ask you to save a PR list or activity summary, ask what was *surprising* or *non-obvious* about it — that is the part worth keeping.
+
+## How to save memories
+
+Saving a memory is a two-step process:
+
+**Step 1** — write the memory to its own file (e.g., `user_role.md`, `feedback_testing.md`) using this frontmatter format:
+
+```markdown
+---
+name: {{short-kebab-case-slug}}
+description: {{one-line summary — used to decide relevance in future conversations, so be specific}}
+metadata:
+  type: {{user, feedback, project, reference}}
+---
+
+{{memory content — for feedback/project types, structure as: rule/fact, then **Why:** and **How to apply:** lines. Link related memories with [[their-name]].}}
+```
+
+In the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally — a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.
+
+**Step 2** — add a pointer to that file in `MEMORY.md`. `MEMORY.md` is an index, not a memory — each entry should be one line, under ~150 characters: `- [Title](file.md) — one-line hook`. It has no frontmatter. Never write memory content directly into `MEMORY.md`.
+
+- `MEMORY.md` is always loaded into your conversation context — lines after 200 will be truncated, so keep the index concise
+- Keep the name, description, and type fields in memory files up-to-date with the content
+- Organize memory semantically by topic, not chronologically
+- Update or remove memories that turn out to be wrong or outdated
+- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.
+
+## When to access memories
+- When memories seem relevant, or the user references prior-conversation work.
+- You MUST access memory when the user explicitly asks you to check, recall, or remember.
+- If the user says to *ignore* or *not use* memory: Do not apply remembered facts, cite, compare against, or mention memory content.
+- Memory records can become stale over time. Use memory as context for what was true at a given point in time. Before answering the user or building assumptions based solely on information in memory records, verify that the memory is still correct and up-to-date by reading the current state of the files or resources. If a recalled memory conflicts with current information, trust what you observe now — and update or remove the stale memory rather than acting on it.
+
+## Before recommending from memory
+
+A memory that names a specific function, file, or flag is a claim that it existed *when the memory was written*. It may have been renamed, removed, or never merged. Before recommending it:
+
+- If the memory names a file path: check the file exists.
+- If the memory names a function or flag: grep for it.
+- If the user is about to act on your recommendation (not just asking about history), verify first.
+
+"The memory says X exists" is not the same as "X exists now."
+
+A memory that summarizes repo state (activity logs, architecture snapshots) is frozen in time. If the user asks about *recent* or *current* state, prefer `git log` or reading the code over recalling the snapshot.
+
+## Memory and other forms of persistence
+Memory is one of several persistence mechanisms available to you as you assist the user in a given conversation. The distinction is often that memory can be recalled in future conversations and should not be used for persisting information that is only useful within the scope of the current conversation.
+- When to use or update a plan instead of memory: If you are about to start a non-trivial implementation task and would like to reach alignment with the user on your approach you should use a Plan rather than saving this information to memory. Similarly, if you already have a plan within the conversation and you have changed your approach persist that change by updating the plan rather than saving a memory.
+- When to use or update tasks instead of memory: When you need to break your work in current conversation into discrete steps or keep track of your progress use tasks instead of saving to memory. Tasks are great for persisting information about the work that needs to be done in the current conversation, but memory should be reserved for information that will be useful in future conversations.
+
+- Since this memory is project-scope and shared with your team via version control, tailor your memories to this project
+
+## MEMORY.md
+
+Your MEMORY.md is currently empty. When you save new memories, they will appear here.
+~~~~~
+
+~~~~~file path=.claude/launch.json
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "<app-a>",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/<app-a>", "dev", "-p", "3000"],
+      "port": 3000
+    },
+    {
+      "name": "<api>",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/<api>", "start:dev"],
+      "port": 4000
+    }
+  ]
+}
+~~~~~
+
+~~~~~file path=.claude/skills/case-from-ki/SKILL.md
+---
+name: case-from-ki
+description: Knowledge Item이나 Issue를 Eval Case로 만들 때 사용한다. 이슈를 고치기 전, KI를 Validated로 올리기 전에 실행한다. "/case-from-ki", "평가 케이스 추가" 요청에 사용한다.
+---
+
+`docs/tools/case-from-ki/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/distill-knowledge/SKILL.md
+---
+name: distill-knowledge
+description: 새 원본(분석 케이스·스키마·리포트·Change Record)에서 Knowledge Item Draft를 추출할 때 사용한다. "/distill-knowledge", "지식 추출", "역분석" 요청에 사용한다.
+---
+
+`docs/tools/distill-knowledge/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/empirical-coding/SKILL.md
+---
+name: empirical-coding
+description: 비사소한 코드 변경을 시작·위임·마무리할 때 Task Brief(목표·가드레일·종료조건·검증수단)와 검증 우선 루프를 적용한다. "/empirical-coding", "보리스 방식", "작업 브리프" 요청에도 사용한다.
+---
+
+`docs/tools/empirical-coding/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/log-change/SKILL.md
+---
+name: log-change
+description: agent/(프롬프트·스킬·도구·검색 설정·모델)를 바꿀 때 Change Record를 만들고 전후 평가로 닫는다. "/log-change", "변경 기록", "에이전트 수정" 요청에 사용한다.
+---
+
+`docs/tools/log-change/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/maintain-highway/SKILL.md
+---
+name: maintain-highway
+description: 코드·워크플로우·지식 라우팅이 바뀐 뒤 docs/를 에이전트 탐색 지도로 유지한다. "/maintain-highway", "문서 지도 갱신", "docs 정리" 요청에 사용한다.
+---
+
+`docs/tools/maintain-highway/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/promote-evolution/SKILL.md
+---
+name: promote-evolution
+description: 에이전트의 자가 개선 제안(evolution/proposals/)을 검토해 Change Loop에 태울 때 사용한다. "/promote-evolution", "자가 개선 제안 검토" 요청에 사용한다.
+---
+
+`docs/tools/promote-evolution/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/prune-harness/SKILL.md
+---
+name: prune-harness
+description: 새 모델 출시나 6개월 주기에 하네스 규칙 층을 걷어내고 반복 실패만 복원한다. "/prune-harness", "하네스 정리", "ablation" 요청에만 사용한다.
+---
+
+`docs/tools/prune-harness/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/review-knowledge/SKILL.md
+---
+name: review-knowledge
+description: Knowledge Base의 Re-validation, 충돌 해소, Deprecated 처리에 사용한다. 스키마 변경·모델 교체 후나 정기 점검에 실행한다. "/review-knowledge", "지식 점검" 요청에 사용한다.
+---
+
+`docs/tools/review-knowledge/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.claude/skills/run-evals/SKILL.md
+---
+name: run-evals
+description: Eval Suite를 실행하고 Baseline과 비교할 때 사용한다. agent/ 변경 전후, Baseline 측정, 정기 점검에 실행한다. "/run-evals", "평가 실행" 요청에 사용한다.
+---
+
+`docs/tools/run-evals/SKILL.md`를 읽고 그 절차를 그대로 따른다. 인자: $ARGUMENTS
+~~~~~
+
+~~~~~file path=.gitignore
+.DS_Store
+node_modules/
+traces/*
+!traces/.gitkeep
+~~~~~
+
+~~~~~file path=agent/INDEX.md
+# agent/ — 진화 대상
+
+> 대상 에이전트의 성능에 영향을 주는 것은 전부 여기 둔다. 여기 밖에 있는 설정이 성능을 바꾸면 변경을 추적할 수 없다.
+
+## 구성
+- `prompts/`: 시스템 프롬프트, 단계별 프롬프트 (목적 파악, 조회 계획, 분석 등)
+- `skills/`: 에이전트가 쓰는 절차·플레이북
+- `tools/`: 도구 정의 (DB 조회, 검색 등)와 설명문
+- `retrieval/`: 검색 설정 (인덱스, 청킹, 임베딩, top-k, 라우팅)
+- 기반 모델과 주요 파라미터는 `agent/model.md`(또는 설정 파일)에 한 곳으로 모은다.
+
+## 변경 규칙
+- 이 폴더의 변경은 Change Record(`ops/changes/CHG-####.md`)와 전후 평가 결과가 있어야 한다.
+- 변경 전에 `knowledge/dev/`에서 같은 주제의 과거 시도를 조회한다.
+- 변경 하나에 가설 하나.
+- 절차: `docs/tools/log-change/SKILL.md`
+
+## Knowledge Base와의 관계
+- 에이전트는 실행 시 `knowledge/domain/`, `knowledge/data/`, `knowledge/learned/`에서 상황 `tags`에 맞는 KI만 받아 쓴다.
+- 운영 실행은 `status: validated`만 쓴다. `draft`는 실험 실행에서만 쓴다.
+- 에이전트가 배운 것은 `agent/`나 `knowledge/`에 직접 쓰지 않고 `evolution/proposals/`에 제안으로 남긴다.
+
+## 실행 기록
+- 실행 기록은 `traces/`에 남긴다 (git 제외). 실패 사례로 등록할 표본만 `ops/issues/`에 요약해 옮긴다.
+~~~~~
+
+~~~~~file path=agent/prompts/.gitkeep
+~~~~~
+
+~~~~~file path=agent/retrieval/.gitkeep
+~~~~~
+
+~~~~~file path=agent/skills/.gitkeep
+~~~~~
+
+~~~~~file path=agent/tools/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/issues/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/plans/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/reports/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/scripts/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/specs/.gitkeep
+~~~~~
+
+~~~~~file path=artifacts/versions/.gitkeep
+~~~~~
+
+~~~~~file path=ci/check-harness.mjs
+// 하네스 불변 원칙을 기계로 확인한다. 사용: node ci/check-harness.mjs [--changed-base <git ref>]
+// 구조를 바꾸면 KI_AREAS / EVAL_SUITES 상수를 맞춘다 (docs/adaptation/INDEX.md).
+import { readFileSync, readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const KI_AREAS = ['knowledge/domain', 'knowledge/data', 'knowledge/learned', 'knowledge/dev'];
+export const EVAL_SUITES = ['evals/retrieval', 'evals/analysis', 'evals/regression'];
+const KI_STATUS = ['draft', 'validated', 'deprecated'];
+const CHG_STATUS = ['proposed', 'adopted', 'rejected', 'rolled-back'];
+const ISS_STATUS = ['open', 'fixed', 'wontfix'];
+const KI_MAX_LINES = 100;
+const SKIP = new Set(['INDEX.md', 'glossary.md', 'REGISTRY.md']);
+
+/** `key: value` 한 줄짜리 frontmatter만 읽는다. 값은 문자열, null, 또는 [a, b] 배열. */
+export function parseFrontmatter(text) {
+  const m = text.match(/^---\n([\s\S]*?)\n---/);
+  if (!m) return null;
+  const out = {};
+  for (const line of m[1].split('\n')) {
+    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
+    if (!kv) continue;
+    let v = kv[2].replace(/\s+#.*$/, '').trim();
+    if (v.startsWith('[') && v.endsWith(']')) {
+      const inner = v.slice(1, -1).trim();
+      out[kv[1]] = inner ? inner.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    } else if (v === 'null' || v === '') out[kv[1]] = null;
+    else out[kv[1]] = v;
+  }
+  return out;
+}
+
+function walk(dir, ext, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir).sort()) {
+    const abs = path.join(dir, name);
+    if (statSync(abs).isDirectory()) walk(abs, ext, out);
+    else if (name.endsWith(ext) && !name.startsWith('_') && !SKIP.has(name)) out.push(abs);
+  }
+  return out;
+}
+
+const empty = (v) => v == null || (Array.isArray(v) && v.length === 0);
+
+export function checkKnowledge(root, holdout = []) {
+  const errors = [];
+  const seen = new Map();
+  for (const area of KI_AREAS) {
+    for (const file of walk(path.join(root, area), '.md')) {
+      const rel = path.relative(root, file);
+      const text = readFileSync(file, 'utf8');
+      const fm = parseFrontmatter(text);
+      if (!fm) { errors.push(`${rel}: frontmatter 없음`); continue; }
+      for (const k of ['id', 'type', 'status']) if (empty(fm[k])) errors.push(`${rel}: ${k} 없음`);
+      if (fm.status && !KI_STATUS.includes(fm.status)) errors.push(`${rel}: status '${fm.status}'는 ${KI_STATUS.join('|')} 중 하나여야 함`);
+      if (fm.status === 'validated') {
+        if (empty(fm.evidence)) errors.push(`${rel}: validated인데 evidence 없음 (근거 없는 KI는 draft)`);
+        if (empty(fm.last_verified)) errors.push(`${rel}: validated인데 last_verified 없음`);
+      }
+      if (fm.status === 'deprecated' && empty(fm.superseded_by)) errors.push(`${rel}: deprecated인데 superseded_by(대체 KI 또는 사유) 없음`);
+      if (fm.id) {
+        if (seen.has(fm.id)) errors.push(`${rel}: id ${fm.id} 중복 (${seen.get(fm.id)})`);
+        else seen.set(fm.id, rel);
+      }
+      for (const src of fm.source ?? []) {
+        const hit = holdout.find((c) => new RegExp(`(^|/)${c}($|/)`).test(src));
+        if (hit) errors.push(`${rel}: Hold-out 케이스 ${hit}를 source로 사용 (추출 금지)`);
+      }
+      const lines = text.split('\n').length;
+      if (lines > KI_MAX_LINES) errors.push(`${rel}: ${lines}줄 (KI는 ${KI_MAX_LINES}줄 이내)`);
+    }
+  }
+  return errors;
+}
+
+export function checkChanges(root) {
+  const errors = [];
+  for (const file of walk(path.join(root, 'ops/changes'), '.md')) {
+    const rel = path.relative(root, file);
+    const fm = parseFrontmatter(readFileSync(file, 'utf8'));
+    if (!fm) { errors.push(`${rel}: frontmatter 없음`); continue; }
+    if (empty(fm.id)) errors.push(`${rel}: id 없음`);
+    if (!CHG_STATUS.includes(fm.status)) errors.push(`${rel}: status '${fm.status}'는 ${CHG_STATUS.join('|')} 중 하나여야 함`);
+    if (empty(fm.trigger)) errors.push(`${rel}: trigger 없음 (왜 바꿨는지 추적 불가)`);
+    if (empty(fm.targets)) errors.push(`${rel}: targets 없음`);
+    if (fm.status && fm.status !== 'proposed') {
+      if (empty(fm.eval_before) || empty(fm.eval_after)) errors.push(`${rel}: ${fm.status}인데 eval_before/eval_after 없음`);
+      if (empty(fm.date)) errors.push(`${rel}: ${fm.status}인데 date 없음`);
+    }
+  }
+  return errors;
+}
+
+export function checkIssues(root) {
+  const errors = [];
+  for (const file of walk(path.join(root, 'ops/issues'), '.md')) {
+    const rel = path.relative(root, file);
+    const fm = parseFrontmatter(readFileSync(file, 'utf8'));
+    if (!fm) { errors.push(`${rel}: frontmatter 없음`); continue; }
+    if (empty(fm.id)) errors.push(`${rel}: id 없음`);
+    if (!ISS_STATUS.includes(fm.status)) errors.push(`${rel}: status '${fm.status}'는 ${ISS_STATUS.join('|')} 중 하나여야 함`);
+    if (fm.status === 'fixed') {
+      if (empty(fm.eval_case)) errors.push(`${rel}: fixed인데 eval_case 없음 (이슈는 Eval Case로 등록)`);
+      if (empty(fm.change)) errors.push(`${rel}: fixed인데 change 없음`);
+    }
+  }
+  return errors;
+}
+
+export function checkEvalCases(root) {
+  const errors = [];
+  const seen = new Map();
+  for (const suite of EVAL_SUITES) {
+    for (const file of walk(path.join(root, suite), '.json')) {
+      const rel = path.relative(root, file);
+      let c;
+      try { c = JSON.parse(readFileSync(file, 'utf8')); } catch { errors.push(`${rel}: JSON 파싱 실패`); continue; }
+      for (const k of ['id', 'input', 'expected']) if (empty(c[k])) errors.push(`${rel}: ${k} 없음`);
+      if (c.id) {
+        if (seen.has(c.id)) errors.push(`${rel}: id ${c.id} 중복 (${seen.get(c.id)})`);
+        else seen.set(c.id, rel);
+      }
+    }
+  }
+  return errors;
+}
+
+/** agent/가 바뀌었는데 Change Record가 함께 바뀌지 않았으면 오류. */
+export function checkChangedFiles(files) {
+  const touchedAgent = files.filter((f) => f.startsWith('agent/') && !f.endsWith('.gitkeep') && f !== 'agent/INDEX.md');
+  const hasRecord = files.some((f) => /^ops\/changes\/CHG-.+\.md$/.test(f));
+  return touchedAgent.length && !hasRecord
+    ? [`agent/ 변경(${touchedAgent.length}개 파일)에 Change Record가 없음: ops/changes/CHG-####.md를 추가한다`]
+    : [];
+}
+
+export function readHoldout(root) {
+  const p = path.join(root, 'evals/splits.json');
+  if (!existsSync(p)) return [];
+  return JSON.parse(readFileSync(p, 'utf8')).holdout ?? [];
+}
+
+export function checkAll(root, changedFiles = null) {
+  return [
+    ...checkKnowledge(root, readHoldout(root)),
+    ...checkChanges(root),
+    ...checkIssues(root),
+    ...checkEvalCases(root),
+    ...(changedFiles ? checkChangedFiles(changedFiles) : []),
+  ];
+}
+
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const i = process.argv.indexOf('--changed-base');
+  let changed = null;
+  if (i !== -1) {
+    const base = process.argv[i + 1];
+    if (!base) { console.error('usage: node ci/check-harness.mjs [--changed-base <git ref>]'); process.exit(2); }
+    changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { cwd: root }).toString().split('\n').filter(Boolean);
+  }
+  const errors = checkAll(root, changed);
+  if (errors.length) {
+    for (const e of errors) console.error(`✗ ${e}`);
+    console.error(`\n${errors.length}건 실패`);
+    process.exit(1);
+  }
+  console.log('harness ok');
+}
+~~~~~
+
+~~~~~file path=ci/check-harness.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  parseFrontmatter, checkKnowledge, checkChanges, checkIssues, checkEvalCases, checkChangedFiles, checkAll,
+} from './check-harness.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function repo(files) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'harness-'));
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    writeFileSync(path.join(root, rel), body);
+  }
+  return root;
+}
+const ki = (fields) => `---\n${Object.entries({ id: 'Q-0001', type: 'query-pattern', status: 'draft', ...fields })
+  .map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n본문\n`;
+
+test('parseFrontmatter는 배열·null·주석을 읽는다', () => {
+  const fm = parseFrontmatter('---\nid: Q-0001\nstatus: draft   # 주석\ntags: [a, b]\nevidence: []\nlast_verified: null\n---\n');
+  assert.deepEqual(fm, { id: 'Q-0001', status: 'draft', tags: ['a', 'b'], evidence: [], last_verified: null });
+});
+
+test('draft KI는 근거 없이 통과한다', () => {
+  assert.deepEqual(checkKnowledge(repo({ 'knowledge/data/query-patterns/Q-0001-x.md': ki({}) })), []);
+});
+
+test('validated KI는 evidence와 last_verified가 있어야 한다', () => {
+  const errors = checkKnowledge(repo({ 'knowledge/data/query-patterns/Q-0001-x.md': ki({ status: 'validated', evidence: '[]' }) }));
+  assert.equal(errors.length, 2);
+  assert.match(errors[0], /evidence 없음/);
+  const ok = ki({ status: 'validated', evidence: '[replay:CASE-001]', last_verified: '2026-01-15' });
+  assert.deepEqual(checkKnowledge(repo({ 'knowledge/data/query-patterns/Q-0001-x.md': ok })), []);
+});
+
+test('deprecated KI는 superseded_by가 있어야 한다', () => {
+  const errors = checkKnowledge(repo({ 'knowledge/dev/lessons/L-0001-x.md': ki({ id: 'L-0001', status: 'deprecated' }) }));
+  assert.match(errors[0], /superseded_by/);
+});
+
+test('Hold-out 케이스를 source로 쓰면 실패한다', () => {
+  const root = repo({ 'knowledge/domain/heuristics/D-0001-x.md': ki({ id: 'D-0001', source: '[raw/cases/CASE-009]' }) });
+  assert.match(checkKnowledge(root, ['CASE-009'])[0], /Hold-out 케이스 CASE-009/);
+  assert.deepEqual(checkKnowledge(root, ['CASE-00']), []);
+});
+
+test('KI id 중복과 잘못된 status를 잡는다', () => {
+  const errors = checkKnowledge(repo({
+    'knowledge/data/caveats/DC-0001-a.md': ki({ id: 'DC-0001' }),
+    'knowledge/data/caveats/DC-0001-b.md': ki({ id: 'DC-0001', status: 'done' }),
+  }));
+  assert.equal(errors.length, 2);
+});
+
+test('_TEMPLATE과 INDEX는 검사하지 않는다', () => {
+  assert.deepEqual(checkKnowledge(repo({
+    'knowledge/dev/lessons/_TEMPLATE.md': 'frontmatter 없음',
+    'knowledge/dev/INDEX.md': '# index',
+  })), []);
+});
+
+test('닫힌 Change Record는 전후 평가와 날짜가 있어야 한다', () => {
+  const chg = (f) => `---\n${Object.entries({ id: 'CHG-0001', status: 'proposed', trigger: '[ISS-0001]', targets: '[agent/prompts/a.md]', ...f })
+    .map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n`;
+  assert.deepEqual(checkChanges(repo({ 'ops/changes/CHG-0001.md': chg({}) })), []);
+  assert.equal(checkChanges(repo({ 'ops/changes/CHG-0001.md': chg({ status: 'adopted' }) })).length, 2);
+  assert.deepEqual(checkChanges(repo({ 'ops/changes/CHG-0001.md': chg({
+    status: 'rejected', date: '2026-01-15', eval_before: 'evals/results/a.json', eval_after: 'evals/results/b.json',
+  }) })), []);
+  assert.match(checkChanges(repo({ 'ops/changes/CHG-0001.md': chg({ trigger: '[]' }) }))[0], /trigger 없음/);
+});
+
+test('fixed 이슈는 Eval Case와 Change Record를 가리켜야 한다', () => {
+  const iss = (f) => `---\nid: ISS-0001\nstatus: ${f.status}\neval_case: ${f.eval_case ?? '[]'}\nchange: ${f.change ?? '[]'}\n---\n`;
+  assert.deepEqual(checkIssues(repo({ 'ops/issues/ISS-0001.md': iss({ status: 'open' }) })), []);
+  assert.equal(checkIssues(repo({ 'ops/issues/ISS-0001.md': iss({ status: 'fixed' }) })).length, 2);
+  assert.deepEqual(checkIssues(repo({ 'ops/issues/ISS-0001.md': iss({ status: 'fixed', eval_case: '[R-0001]', change: '[CHG-0001]' }) })), []);
+});
+
+test('Eval Case는 id·input·expected가 있어야 한다', () => {
+  const errors = checkEvalCases(repo({
+    'evals/retrieval/R-0001.json': JSON.stringify({ id: 'R-0001', input: { request: 'q' }, expected: { result: 'x' } }),
+    'evals/retrieval/R-0002.json': JSON.stringify({ id: 'R-0002' }),
+    'evals/analysis/A-0001.json': '{ 깨진 json',
+  }));
+  assert.equal(errors.length, 3);
+});
+
+test('agent/ 변경에는 Change Record가 따라야 한다', () => {
+  assert.equal(checkChangedFiles(['agent/prompts/plan.md']).length, 1);
+  assert.deepEqual(checkChangedFiles(['agent/prompts/plan.md', 'ops/changes/CHG-0002.md']), []);
+  assert.deepEqual(checkChangedFiles(['docs/SSOT.md', 'agent/INDEX.md']), []);
+});
+
+test('이 저장소 자체가 검사를 통과한다', () => {
+  assert.deepEqual(checkAll(repoRoot), []);
+  assert.match(execFileSync(process.execPath, [path.join(repoRoot, 'ci/check-harness.mjs')]).toString(), /harness ok/);
+});
+~~~~~
+
+~~~~~file path=ci/eval-gate.mjs
+// 평가 결과를 Baseline과 비교한다. 사용: node ci/eval-gate.mjs [결과 파일 (기본 evals/results/latest.json)]
+// 형식은 evals/INDEX.md의 러너 계약을 따른다.
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** Baseline에 있는 Suite마다 결과 점수가 (baseline - tolerance) 이상인지 본다. */
+export function compare(baseline, result) {
+  const tol = baseline.tolerance ?? 0;
+  const rows = [];
+  for (const [suite, base] of Object.entries(baseline.suites ?? {})) {
+    const got = result.suites?.[suite];
+    if (!got) { rows.push({ suite, ok: false, base: base.score, got: null, reason: '결과에 Suite 없음' }); continue; }
+    const ok = got.score >= base.score - tol;
+    rows.push({ suite, ok, base: base.score, got: got.score, reason: ok ? '' : 'Baseline보다 낮음', failed: got.failed ?? [] });
+  }
+  return { ok: rows.every((r) => r.ok), rows };
+}
+
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const baseline = JSON.parse(readFileSync(path.join(root, 'evals/baseline.json'), 'utf8'));
+  if (!Object.keys(baseline.suites ?? {}).length) {
+    console.log('baseline 없음: 측정 전이라 게이트를 통과시킨다 (첫 평가 후 evals/baseline.json을 채운다)');
+    process.exit(0);
+  }
+  const resultPath = path.resolve(root, process.argv[2] ?? 'evals/results/latest.json');
+  if (!existsSync(resultPath)) { console.error(`✗ 평가 결과 없음: ${path.relative(root, resultPath)}`); process.exit(1); }
+  const { ok, rows } = compare(baseline, JSON.parse(readFileSync(resultPath, 'utf8')));
+  for (const r of rows) {
+    console.log(`${r.ok ? '✓' : '✗'} ${r.suite}: ${r.base} → ${r.got ?? '-'} ${r.reason}${r.failed?.length ? ` (실패: ${r.failed.join(', ')})` : ''}`);
+  }
+  process.exit(ok ? 0 : 1);
+}
+~~~~~
+
+~~~~~file path=ci/eval-gate.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { compare } from './eval-gate.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const baseline = { tolerance: 0.01, suites: { retrieval: { score: 0.84, n: 40 }, regression: { score: 1, n: 12 } } };
+
+test('모든 Suite가 Baseline 이상이면 통과한다', () => {
+  const r = compare(baseline, { suites: { retrieval: { score: 0.9 }, regression: { score: 1 } } });
+  assert.equal(r.ok, true);
+});
+
+test('tolerance 안의 하락은 통과, 벗어나면 실패한다', () => {
+  assert.equal(compare(baseline, { suites: { retrieval: { score: 0.835 }, regression: { score: 1 } } }).ok, true);
+  const r = compare(baseline, { suites: { retrieval: { score: 0.9 }, regression: { score: 0.9, failed: ['G-0003'] } } });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.rows.find((x) => x.suite === 'regression').failed, ['G-0003']);
+});
+
+test('결과에 Suite가 빠지면 실패한다', () => {
+  assert.equal(compare(baseline, { suites: { retrieval: { score: 0.9 } } }).ok, false);
+});
+
+// 프로젝트가 Baseline을 채운 뒤에는 이 테스트를 건너뛴다.
+const measured = Object.keys(JSON.parse(readFileSync(path.join(repoRoot, 'evals/baseline.json'), 'utf8')).suites ?? {}).length > 0;
+
+test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { skip: measured }, () => {
+  const out = execFileSync(process.execPath, [path.join(repoRoot, 'ci/eval-gate.mjs')]).toString();
+  assert.match(out, /측정 전/);
+});
+~~~~~
+
+~~~~~file path=ci/known-failures.json
+{
+  "_comment": "CI 도입 시점의 기존 실패. 신규 실패만 차단하기 위한 동결 목록이다. 항목 추가는 리뷰에서 근거를 요구한다. 제거 계획은 artifacts/issues/<date>-ci-baseline-failures-ticket.md 에 둔다.",
+  "_measuredAt": "<commit sha>",
+  "backend": {},
+  "frontend": {}
+}
+~~~~~
+
+~~~~~file path=ci/test-filters.mjs
+import { readFileSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const APPS = { backend: 'apps/backend', frontend: 'apps/frontend' };
+
+/** jest --testPathIgnorePatterns는 정규식이다. 점을 이스케이프하고 끝을 앵커링한다. */
+export function escapeJestPattern(relPath) {
+  return `${relPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
+}
+
+export function toJestArgs(entries) {
+  return entries.map((e) => `--testPathIgnorePatterns=${escapeJestPattern(e)}`);
+}
+
+/** vitest --exclude는 glob이다. 경로를 그대로 넘긴다. */
+export function toVitestArgs(entries) {
+  return entries.map((e) => `--exclude=${e}`);
+}
+
+export function collectEntries(known, app) {
+  const section = known[app] ?? {};
+  return Object.entries(section)
+    .filter(([key]) => !key.startsWith('_'))
+    .flatMap(([, list]) => list)
+    .sort();
+}
+
+function main() {
+  const [runner, app] = process.argv.slice(2);
+  if (!['jest', 'vitest'].includes(runner) || !APPS[app]) {
+    console.error('usage: node ci/test-filters.mjs <jest|vitest> <backend|frontend>');
+    process.exit(2);
+  }
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const known = JSON.parse(readFileSync(path.join(repoRoot, 'ci/known-failures.json'), 'utf8'));
+  const entries = collectEntries(known, app);
+  const args = runner === 'jest' ? toJestArgs(entries) : toVitestArgs(entries);
+  process.stdout.write(args.join(' '));
+}
+
+// realpathSync로 비교한다. 심볼릭 링크가 낀 경로에서는 process.argv[1]과
+// import.meta.url이 서로 다른 문자열이 되어, CLI가 조용히 아무것도 출력하지 않는다.
+// (그러면 필터 인자가 빈 문자열이 되어 동결이 통째로 무력화된다 — CI는 그대로 red.)
+const selfPath = realpathSync(fileURLToPath(import.meta.url));
+if (process.argv[1] && realpathSync(process.argv[1]) === selfPath) {
+  main();
+}
+~~~~~
+
+~~~~~file path=ci/test-filters.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  escapeJestPattern,
+  toJestArgs,
+  toVitestArgs,
+  collectEntries,
+} from './test-filters.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const known = JSON.parse(readFileSync(path.join(repoRoot, 'ci/known-failures.json'), 'utf8'));
+
+test('escapeJestPattern은 점을 이스케이프하고 끝을 앵커링한다', () => {
+  assert.equal(
+    escapeJestPattern('src/api/user/user.service.spec.ts'),
+    'src/api/user/user\\.service\\.spec\\.ts$',
+  );
+});
+
+test('앵커링이 부분 일치 과다 제외를 막는다', () => {
+  const pattern = new RegExp(escapeJestPattern('src/api/user/user.service.spec.ts'));
+  assert.ok(pattern.test('/repo/apps/backend/src/api/user/user.service.spec.ts'));
+  assert.ok(!pattern.test('/repo/apps/backend/src/api/user/user.service.spec.ts.bak'));
+});
+
+test('이스케이프하지 않은 점은 와일드카드로 과다 매칭된다 (회귀 방어)', () => {
+  const naive = new RegExp('src/api/user/user.service.spec.ts$');
+  assert.ok(naive.test('/repo/src/api/user/userXserviceXspecXts'));
+});
+
+test('toJestArgs는 항목마다 반복 플래그를 만든다', () => {
+  assert.deepEqual(toJestArgs(['src/a.spec.ts', 'src/b.spec.ts']), [
+    '--testPathIgnorePatterns=src/a\\.spec\\.ts$',
+    '--testPathIgnorePatterns=src/b\\.spec\\.ts$',
+  ]);
+});
+
+test('toVitestArgs는 glob이므로 경로를 그대로 쓴다', () => {
+  assert.deepEqual(toVitestArgs(['src/a.test.ts']), ['--exclude=src/a.test.ts']);
+});
+
+test('collectEntries는 모든 분류를 합쳐 정렬해 돌려준다', () => {
+  const entries = collectEntries(
+    { backend: { drift: ['src/b.spec.ts'], harness: ['src/a.spec.ts'] } },
+    'backend',
+  );
+  assert.deepEqual(entries, ['src/a.spec.ts', 'src/b.spec.ts']);
+});
+
+test('known-failures.json의 backend 항목이 전부 실재한다', () => {
+  for (const rel of collectEntries(known, 'backend')) {
+    const full = path.join(repoRoot, 'apps/backend', rel);
+    assert.ok(existsSync(full), `없는 항목: ${rel}`);
+  }
+});
+
+test('known-failures.json의 frontend 항목이 전부 실재한다', () => {
+  for (const rel of collectEntries(known, 'frontend')) {
+    const full = path.join(repoRoot, 'apps/frontend', rel);
+    assert.ok(existsSync(full), `없는 항목: ${rel}`);
+  }
+});
+
+// 새 프로젝트: 동결 목록을 실측한 뒤 아래 상수를 실제 개수로 고정한다. 그래야 목록이 조용히 비는 것을 잡는다.
+const EXPECTED_BACKEND = collectEntries(known, 'backend').length;
+const EXPECTED_FRONTEND = collectEntries(known, 'frontend').length;
+
+test('동결 개수가 스펙 실측치와 일치한다', () => {
+  assert.equal(collectEntries(known, 'backend').length, EXPECTED_BACKEND);
+  assert.equal(collectEntries(known, 'frontend').length, EXPECTED_FRONTEND);
+});
+
+// CLI가 조용히 빈 문자열을 뱉으면 필터 인자가 사라져 동결이 통째로 무력화된다.
+// 워크플로는 그걸 감지하지 못하고 CI만 red가 된다. 그래서 실행 경로를 직접 테스트한다.
+test('CLI가 jest 인자를 실제로 출력한다', () => {
+  const out = execFileSync(process.execPath, [
+    path.join(repoRoot, 'ci/test-filters.mjs'), 'jest', 'backend',
+  ]).toString();
+  if (EXPECTED_BACKEND === 0) return;
+  assert.match(out, /^--testPathIgnorePatterns=/);
+  assert.equal(out.split(' ').length, EXPECTED_BACKEND);
+});
+
+test('CLI가 vitest 인자를 실제로 출력한다', () => {
+  const out = execFileSync(process.execPath, [
+    path.join(repoRoot, 'ci/test-filters.mjs'), 'vitest', 'frontend',
+  ]).toString();
+  if (EXPECTED_FRONTEND === 0) return;
+  assert.match(out, /^--exclude=/);
+  assert.equal(out.split(' ').length, EXPECTED_FRONTEND);
+});
+
+test('잘못된 인자는 종료 코드 2로 끝난다', () => {
+  assert.throws(
+    () => execFileSync(process.execPath, [
+      path.join(repoRoot, 'ci/test-filters.mjs'), 'mocha', 'backend',
+    ], { stdio: 'pipe' }),
+    (err) => err.status === 2,
+  );
+});
+~~~~~
+
+~~~~~file path=docs/ARCHITECTURE.md
+# Architecture
+> 이 문서는 앱 경계와 런타임 흐름을 빠르게 잡기 위한 상위 지도다.
+> 세부 도메인은 각 영역 INDEX와 share 문서로 내려간다.
+
+## Runtime Shape
+- <모노레포/워크스페이스 형태, 앱 위치>
+- <DB 기준(schema 파일)과 프론트 타입의 관계>
+- <공유 패키지 유무. 없으면 "공통 contract는 docs/share와 각 앱 wrapper/type/schema로 추적한다">
+
+## Main Boundaries
+- 진화 대상은 `agent/`, 지식은 `knowledge/`, 평가는 `evals/`, 변경 추적은 `ops/`·`evolution/`이다. 각 폴더의 `INDEX.md`가 시작 문서다.
+- <각 앱의 시작 INDEX>
+- <bootstrap·config 파일 위치(보안 헤더, CORS, body limit 등)>
+
+## Core Flows
+- <도메인 핵심 흐름 3~5개를 한 줄씩. 예: Auth/session, 주요 업무 흐름, 운영/설정>
+
+## Change Notes
+- <변경 시 좁히는 순서. 예: route → service → schema → frontend wrapper/type>
+- <가장 흔한 누락(테넌트 id, 권한 scope 등)을 "우선 의심" 항목으로>
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| <Area A> | [<a>/INDEX.md](./<a>/INDEX.md) |
+| AgentOps (지식·평가·변경) | [agentops/INDEX.md](./agentops/INDEX.md) |
+| 구조 수정 가이드 | [adaptation/INDEX.md](./adaptation/INDEX.md) |
+| AI 기능 / 모델 배분 | [share/AI_MODELS.md](./share/AI_MODELS.md) |
+| Cross-app workflows | [share/INDEX.md](./share/INDEX.md) |
+| Workflow tools | [tools/INDEX.md](./tools/INDEX.md) |
+~~~~~
+
+~~~~~file path=docs/SSOT.md
+# SSOT — <PROJECT_NAME>
+
+## Core Principles
+- 이 파일 SSOT는 레포지토리 작업을 위한 문서의 최우선 원칙이자 시작점이다. 작업 시작 전 내부 점검에서 이 `Core Principles`를 지키겠다고 먼저 선언하고 확인한다. 상세 사고 과정은 노출하지 않는다.
+- 비사소한 코드 변경은 `docs/tools/empirical-coding`의 Task Brief(목표·가드레일·종료조건·검증수단)로 시작하고, 검증 명령을 실제로 실행해 확인한 뒤에만 완료로 보고한다.
+- `agent/`를 바꾸는 변경은 Change Record(`ops/changes/`)와 전후 평가 결과가 있어야 한다. 이슈는 고치기 전에 Eval Case로 먼저 등록한다. 평가 점수를 맞추려고 Eval Case를 고치지 않는다.
+- Knowledge Item은 근거(Eval Case·재현 결과·Change Record) 없이는 Validated가 될 수 없다. `knowledge/raw/`는 수정하지 않고, Hold-out 케이스에서 지식을 추출하지 않는다.
+- 자가 개선 제안(`evolution/proposals/`)도 같은 Eval Gate를 지난다. 에이전트는 Draft까지만 쓰고, 승격 권한은 `docs/adaptation/AUTONOMY_LEVELS.md`의 현재 단계를 따른다.
+- 이 문서·영역 INDEX·스킬·훅에 행동 규칙을 추가하는 것은 같은 실수가 2회 이상 관찰됐을 때만 한 줄씩 한다. 모델 세대가 바뀌면 `prune-harness`로 걷어낸다.
+- `Source Map`은 코드 작업을 위한 지도의 시작점이다. 반드시 직접 탐색보다, 지도를 통한 필요 작업 영역 `INDEX.md`의 Reference Map 탐색을 우선한다.
+- <되돌리기 어려운 변경 1(예: DB migration/schema 변경, 운영 데이터 쓰기)>은 반드시 작업자의 명시 허락을 받은 뒤에만 진행한다.
+- 어떤 작업이든 먼저 <핵심 계층(예: backend)> 코드 변경 없이 해결 가능한 방법을 찾고, 변경이 필요하면 이유와 영향 범위를 설명한다. 오버엔지니어링을 피하고 기존 공용 구조와 확장 가능한 경로를 먼저 확인한다.
+- <프로젝트 고유 도메인 규칙은 여기에 한 줄씩. 예: 에이전트의 DB 접근은 read-only 계정만>
+
+## 테스트 실행 규칙
+- <동시 워크트리 수와 테스트 러너 제약을 적는다. 예: 항상 `npx vitest run --pool=threads --poolOptions.threads.maxThreads=2`, watch 모드 금지>
+- 하네스 무결성은 `node ci/check-harness.mjs`, 평가 게이트는 `node ci/eval-gate.mjs`로 확인한다.
+
+## Source Map
+| 영역 | 코드 |
+| --- | --- |
+| 에이전트(진화 대상) | `agent/` |
+| Knowledge Base | `knowledge/` |
+| 평가 | `evals/` |
+| 변경 추적·자가 개선 | `ops/`, `evolution/`, `traces/` |
+| <Area A> | `apps/<a>` |
+| 게이트·공유 규칙 | `ci/`, `docs/share` |
+| 작업 산출물 | `artifacts/*` |
+
+## Working Protocol
+1. 워크트리에서 시작한 세션이면 `git rev-parse --show-toplevel`로 워크트리 루트를 먼저 확인하고, 이후 모든 파일 편집/실행은 그 경로 안에서 한다.
+2. `SSOT.md`에서 영역을 고르고, 영역 `INDEX.md`에서 소스 위치와 Reference Map을 확인한다.
+3. `agent/` 변경이면 먼저 `knowledge/dev/`에서 과거 시도를 조회하고 `log-change` 절차를 따른다.
+4. 수정 전에 검증 루프(Eval Case·테스트·재현 스크립트)를 먼저 세운다.
+5. 문서가 코드와 다르면 코드를 기준으로 문서를 갱신한다.
+
+## Doc Rules
+- 탐색 순서: `docs/SSOT.md` → `<MAIN_AREA>/INDEX.md` → 선택적 `<SUB_AREA>/INDEX.md` → topic `*.md`. 깊이는 최대 3단계다.
+- 기준형 문서(`SSOT.md`, `INDEX.md`)는 60줄 이내, 자료형 topic 문서와 Knowledge Item은 100줄 이내다. 넘으면 새 영역과 `INDEX.md`로 나눈다.
+- 기준형 문서에는 구현 코드, 장문 API 상세, 긴 조사 결과를 넣지 않는다.
+- 긴 ticket/spec/plan/report는 `artifacts/{issues,specs,plans,reports,scripts,versions}/`에 `YYYY-MM-DD-<topic>-<kind>.md`로 둔다. 줄 수 제한 대상이 아니다.
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| Architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| AgentOps (지식·평가·변경 방법론) | [agentops/INDEX.md](./agentops/INDEX.md) |
+| 구조 수정 가이드 | [adaptation/INDEX.md](./adaptation/INDEX.md) |
+| <Area A> | [<a>/INDEX.md](./<a>/INDEX.md) |
+| Cross-App / Workspace | [share/INDEX.md](./share/INDEX.md) |
+| Workflow Tools | [tools/INDEX.md](./tools/INDEX.md) |
+~~~~~
+
+~~~~~file path=docs/_area_template/INDEX.md
+# Sub-SSOT — <area>
+> `apps/<area>`의 시작 문서다.
+> <런타임 한 줄: 프레임워크 + 주요 버전>
+
+## Commands
+앱 기준으로 실행한다.
+- `pnpm --filter <package> dev`
+- `pnpm --filter <package> build`
+- `pnpm --filter <package> typecheck`
+- `pnpm --filter <package> test`
+<어떤 변경에 어떤 명령까지 돌리는지 한 줄 규칙>
+
+## Runtime
+- <필수 env>
+- <외부 연동 시 보는 env>
+
+## Source Map
+- `src/<entry>`: <책임>
+- `src/<layer>`: <책임>
+- `<config files>`: <책임>
+- <로컬 agent/skill 폴더는 product runtime이 아님을 명시>
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| <topic> | [<TOPIC>.md](./<TOPIC>.md) |
+| <sub area> | [<sub>/INDEX.md](./<sub>/INDEX.md) |
+| 공통 흐름 | [../share/<TOPIC>.md](../share/<TOPIC>.md) |
+~~~~~
+
+~~~~~file path=docs/adaptation/AUTONOMY_LEVELS.md
+# Autonomy Levels
+
+> 자가진화를 어디까지 자동으로 둘지 정하는 단계. 낮은 단계에서 시작하고, 조건을 충족할 때 한 단계씩 올린다.
+
+## 현재 단계
+**L0** (프로젝트가 채운다. 단계를 바꾸면 ADR을 남기고 이 줄을 갱신한다.)
+
+## 단계
+| 단계 | 에이전트가 할 수 있는 것 | 올리는 조건 |
+| --- | --- | --- |
+| L0 수동 | 사람만 지식과 `agent/`를 바꾼다. 에이전트는 실행만 한다 | 시작점. Eval Suite와 Baseline이 생기기 전 |
+| L1 제안 | 에이전트가 `evolution/proposals/`에 제안을 쌓는다. 반영은 사람이 Change Loop로 한다 | Baseline 확정, Regression Suite 존재, `ci/check-harness.mjs` 통과 |
+| L2 조건부 사용 | Draft 지식을 실험 실행에서만 써 보고 결과를 제안에 첨부한다. 운영 실행은 Validated만 쓴다 | 제안의 채택률이 안정적, 실험 실행과 운영 실행이 분리됨 |
+| L3 저위험 자동 승격 | Eval Gate를 통과한 저위험 유형은 자동으로 Promote하고 사후 검토한다 | 자동 승격분의 롤백 이력이 낮음, 저위험 유형 목록 합의 |
+
+## 저위험 유형 (L3에서만 의미가 있다)
+프로젝트가 정한다. 출발점 제안:
+- 저위험: Data Caveat 추가, Glossary 추가, 기존 Query Pattern의 tags 보강
+- 고위험 (항상 사람 승인): Decision Heuristic, `agent/prompts/` 변경, `agent/tools/` 변경, 검색 인덱스 설정
+
+## 모든 단계에서 지키는 것
+- 에이전트가 쓴 것은 Draft로 시작한다.
+- 자동 승격도 Change Record를 남긴다 (`author: agent`).
+- Eval Case와 Baseline은 에이전트가 수정하지 않는다.
+- `knowledge/raw/`와 Hold-out 케이스는 에이전트가 수정하지 않는다.
+
+## 내릴 때
+- 자동 승격된 지식이 Regression을 일으키면 해당 유형을 저위험 목록에서 빼고, 원인을 Failure Mode로 기록한다.
+- 한 주기에 롤백이 두 번 이상이면 단계를 하나 내린다.
+- 쓰기 작업을 하는 에이전트로 바뀌면 L1 이하로 내린다.
+
+## 단계별로 켜지는 절차
+| 단계 | 쓰는 스킬 |
+| --- | --- |
+| L0 | `distill-knowledge`, `case-from-ki`, `log-change`, `run-evals`, `review-knowledge` |
+| L1 이상 | 위 + `promote-evolution` |
+| L3 | 위 + 자동 승격 실행기 (프로젝트가 구현, `promote-evolution` 절차를 그대로 따른다) |
+~~~~~
+
+~~~~~file path=docs/adaptation/INDEX.md
+# Sub-SSOT — Adaptation
+
+> 에이전트 개발 시나리오가 달라질 때 이 템플릿의 구조를 어디까지, 어떻게 바꾸는지 정한 문서다.
+> 폴더 이름과 개수는 바꿔도 된다. 불변 원칙이 깨지면 "나아졌는지 모르는" 상태로 돌아간다.
+
+## 불변 원칙 (바꾸지 않는다)
+1. `agent/` 변경에는 Change Record와 전후 평가가 따른다.
+2. 이슈는 고치기 전에 Eval Case로 등록한다.
+3. 근거 없는 KI는 Draft다.
+4. `knowledge/raw/`는 수정하지 않는다.
+5. Hold-out 케이스에서 지식을 추출하지 않는다.
+6. 자가 개선 제안도 같은 Eval Gate를 지난다.
+
+## 조정 가능 (바꿔도 된다)
+- Knowledge Base 영역의 수와 이름, 하위 분할
+- KI 유형의 추가·삭제
+- Eval Suite의 종류와 지표
+- 사람 승인이 필요한 지점과 자동화 수준
+- 저장 방식 (파일 → 검색 인덱스, 외부 LLMOps 도구)
+- `agent/`의 내부 구성 (단일 → 멀티 에이전트)
+
+## 수정 판단 순서
+앞 단계에서 해결되면 멈춘다.
+1. **반복되는가**: 같은 불편이 2회 이상 관찰됐는가. 한 번이면 구조를 바꾸지 않는다.
+2. **기존 자리로 되는가**: 기존 폴더·KI 유형·태그로 담을 수 있는가.
+3. **유형 추가로 되는가**: KI 유형이나 Eval Suite 하나를 추가하면 되는가.
+4. **영역 추가**: 그래도 안 되면 새 영역·폴더를 만들고 INDEX와 SSOT Source Map에 연결한다.
+5. **기록**: 구조 변경을 `knowledge/dev/decisions/`에 ADR로 남긴다.
+
+## 구조를 바꾼 뒤 할 일
+- ADR 작성: 무엇이 불편했고, 어떤 대안이 있었고, 왜 이렇게 정했나.
+- `docs/SSOT.md` Source Map과 관련 INDEX 갱신 (`maintain-highway`).
+- `ci/check-harness.mjs`의 `KI_AREAS`·`EVAL_SUITES` 상수가 새 폴더를 포함하는지 확인.
+- 불변 원칙 여섯 가지가 여전히 지켜지는지 `node ci/check-harness.mjs`로 점검.
+
+## 피해야 할 수정
+- **급해서 게이트를 건너뛴다**: 급한 수정도 Change Record는 사후에라도 남긴다.
+- **Eval Case를 고쳐서 통과시킨다**: Baseline의 의미가 사라진다. Eval Case 수정도 Change Record 대상이다.
+- **영역을 미리 만든다**: 빈 구조는 지도만 복잡하게 한다.
+- **KI를 합쳐 긴 문서로 되돌린다**: 개별 검증·폐기·추적이 불가능해진다. 길어지면 나눈다.
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| 시나리오별 수정 방법 | [SCENARIOS.md](./SCENARIOS.md) |
+| 자가진화 자동화 수준 | [AUTONOMY_LEVELS.md](./AUTONOMY_LEVELS.md) |
+| 방법론 원문 | [../agentops/INDEX.md](../agentops/INDEX.md) |
+~~~~~
+
+~~~~~file path=docs/adaptation/SCENARIOS.md
+# Adaptation Scenarios
+
+> 자주 만나는 상황과 그때 바꿀 곳. 적용 전에 [INDEX.md](./INDEX.md)의 수정 판단 순서를 먼저 확인한다.
+
+## 데이터·케이스 조건
+| 시나리오 | 무엇이 달라지나 | 어떻게 수정하나 |
+| --- | --- | --- |
+| raw data가 없는 리포트만 있다 | Replay를 할 수 없다 | 절차만 추출해 Draft로 둔다. 평가는 수치 일치 대신 "어떤 데이터를 보고 어떤 기준으로 판단했나"를 채점 기준표로 본다. 전문가 리뷰 비중을 높이고, 새로 생기는 케이스부터 데이터 스냅샷을 함께 Capture한다. |
+| 케이스 수가 적다 (10건 안팎) | Hold-out을 떼면 추출할 케이스가 부족하다 | 한 건씩 번갈아 평가용으로 빼는 방식(leave-one-out)을 쓰거나, 기존 케이스는 모두 추출에 쓰고 이후 신규 케이스를 Hold-out으로 쌓는다. `evals/baseline.json`의 `notes`에 표본이 적음을 적는다. |
+| 정답이 주관적이다 | 수치 일치로 채점할 수 없다 | 채점 기준표(rubric)를 `evals/` 아래에서 버전 관리하고 판정 모델로 채점한다. 사람이 표본을 주기적으로 검수해 판정 모델의 정확도를 확인한다. 채점 기준 변경도 Change Record 대상이다. |
+
+## 데이터 소스
+| 시나리오 | 무엇이 달라지나 | 어떻게 수정하나 |
+| --- | --- | --- |
+| 정형 DB(SQL) 중심 | 테이블·컬럼 선택과 조건이 정확도를 좌우한다 | `knowledge/data/catalog/`를 테이블 단위로 세분하고 Query Pattern을 강화한다. Retrieval 평가는 쿼리 실행 결과가 정답과 같은지로 채점한다. 스키마 변경 시 관련 KI를 Re-validation 대상으로 표시한다. 에이전트 계정은 read-only로 둔다. |
+| RAG(임베딩 DB) 중심 | 청킹·임베딩·검색 설정이 성능을 좌우한다 | 인덱스 설정을 `agent/retrieval/`에 두고 Change Record 대상으로 삼는다. Eval Case의 `expected`에 정답 문서 ID를 넣어 검색 적중률을 따로 잰다. `knowledge/data/`에 Chunking/Embedding Note 유형을 추가한다. |
+| DB와 RAG를 함께 쓴다 | 어느 쪽을 조회할지 고르는 판단이 추가된다 | "이 목적이면 어느 소스"를 정리한 Routing Rule KI 유형을 추가한다. Retrieval Suite를 소스 선택 / 소스 내 조회 두 단계로 나눠 어디서 틀렸는지 구분한다. |
+| 도메인이 여러 개다 | 도메인마다 판단 기준과 데이터가 다르다 | `knowledge/domain/<sub>/`와 도메인별 Eval Suite로 나눈다. 공통 지식은 상위에 남긴다. 한 도메인의 변경이 다른 도메인을 깨는지 Regression으로 확인한다. |
+| 지식량이 급증한다 (KI 수백 건 이상) | INDEX 파일만으로 찾기 어렵다 | 영역을 하위로 분할하고, KI frontmatter를 그대로 쓰는 검색 인덱스를 추가한다. 파일이 원본, 인덱스는 파생물이다. `review-knowledge` 주기를 짧게 한다. |
+
+## 에이전트 형태
+| 시나리오 | 무엇이 달라지나 | 어떻게 수정하나 |
+| --- | --- | --- |
+| 멀티 에이전트 | 에이전트마다 역할과 실패 지점이 다르다 | `agent/<name>/`으로 분리한다. 평가는 에이전트별 + 전체 흐름(end-to-end) 두 층으로 둔다. Change Record `targets`에 대상 에이전트가 드러나게 한다. Knowledge Base는 공유를 기본으로 하고 전용 지식만 태그로 구분한다. |
+| 쓰기 작업을 하는 에이전트 | 잘못된 실행이 실제 피해로 이어진다 | Safety Suite를 추가하고 평가는 격리 환경에서만 돌린다. 자동화 수준을 L1 이하로 고정하고, 되돌리기 어려운 동작은 SSOT의 허락 필수 변경에 넣는다. |
+| 대화형 (여러 턴) | 한 번의 질문·답이 아니라 흐름을 평가해야 한다 | Eval Case의 `input`을 대화 시나리오 단위로 만든다. 되묻기의 적절성, 맥락 유지 같은 대화 채점 기준을 추가한다. |
+
+## 운영 조건
+| 시나리오 | 무엇이 달라지나 | 어떻게 수정하나 |
+| --- | --- | --- |
+| 평가 비용·시간이 크다 | 변경마다 전체 평가를 돌리기 어렵다 | 빠른 세트(smoke)와 전체 세트(full)로 나눈다. 변경마다 smoke, 채택 직전과 정기적으로 full을 돌린다. Change Record의 `eval_suite`에 어느 세트였는지 적는다. |
+| 기반 모델을 교체한다 | 모든 점수의 기준이 바뀐다 | 모델 교체 자체를 Change Record로 남기고 전체 평가 후 Baseline을 다시 잡는다. 이전 모델용 보정 지식·규칙이 아직 필요한지 `prune-harness`로 점검한다. |
+| 외부 LLMOps 도구를 도입한다 | 트레이스·평가 결과가 도구로 옮겨간다 | `traces/`와 `evals/results/`를 도구로 옮기되 Change Record ID를 실행 태그로 붙여 연결을 유지한다. Change Registry와 Knowledge Base는 저장소에 남긴다. |
+| 팀이 커진다 | 동시에 여러 변경이 진행된다 | 변경 하나에 가설 하나 원칙을 강제한다. KI와 Eval Case에 담당자 필드를 추가한다. Change Record ID 충돌을 막기 위해 번호를 브랜치 병합 시점에 확정한다. |
+
+## 여기 없는 상황이면
+수정 판단 순서를 따르고, 정한 내용을 ADR로 남긴 뒤 이 표에 한 행을 추가한다. 같은 상황이 두 번째로 오면 그 행이 가이드가 된다.
+~~~~~
+
+~~~~~file path=docs/agentops/BOOTSTRAPPING.md
+# Knowledge Bootstrapping
+
+> 프로젝트 초기에 지식 베이스를 처음 채우는 방법. 사람이 쓴 분석 문서와 당시 raw data가 함께 남아 있는 "분석 케이스"를 에이전트에게 주고, 어떻게 그렇게 분석됐는지 역분석시켜 KI로 축적한다.
+
+## 흐름
+```text
+① Capture   분석 케이스(문서 + raw data) → knowledge/raw/cases/CASE-###/
+              ├─ Distill 세트 (지식 추출용)        └─ Hold-out 세트 (평가 전용)
+② Distill   역분석: 요청 목적 → 조회한 데이터          Eval Case 작성
+            → 판단 기준을 재구성                       (입력: 요청+데이터 / 정답: 사람의 결론)
+            → Decision Heuristic · Query Pattern
+              · Data Caveat (모두 Draft)
+③ Validate  Replay(수치 재현) + 전문가 리뷰
+④ Promote   Validated KI ───── Serve ─────────────▶ ⑤ Blind 평가 → Baseline 확정
+⑥ 불일치    재현 실패·평가 오답 → ISS → CHG → knowledge/dev/
+```
+
+## 단계별 할 일
+1. **Capture**: 케이스마다 `knowledge/raw/cases/CASE-###/`에 문서, 데이터 스냅샷(또는 스냅샷 위치), `meta.md`를 둔다. 민감 정보는 저장소에 넣기 전에 처리한다.
+2. **Split**: `evals/splits.json`에 케이스를 `distill`과 `holdout`으로 나눈다. 나눈 뒤에는 옮기지 않는다. 케이스가 적으면 `docs/adaptation/SCENARIOS.md`의 해당 행을 따른다.
+3. **Distill (역분석)**: Distill 세트의 케이스마다 문서(캡처 이미지 포함)와 데이터를 대조해 세 가지를 재구성한다. (`distill-knowledge` 역분석 모드)
+   - 요청의 목적이 무엇이었나
+   - 어떤 데이터를 어떤 조건으로 조회했나 → Query Pattern, Data Caveat
+   - 어떤 기준으로 결론을 냈나 → Decision Heuristic
+   문서만으로 설명되지 않는 부분은 추측하지 말고 전문가 질문 목록으로 남긴다.
+4. **Validate**: 재구성한 Query Pattern으로 조회해 문서의 수치가 재현되는지 확인한다(Replay). 재현되면 `evidence: [replay:CASE-###]`. 판단 기준은 전문가가 검토한다.
+5. **Promote**: 재현되고 리뷰를 통과한 KI만 Validated로 올린다.
+6. **Blind 평가**: Hold-out 케이스로 Eval Case를 만든다. 에이전트는 문서를 보지 않고 KI만으로 분석하고, 조회한 데이터와 결론을 사람의 문서와 비교한다. 이 결과가 첫 Baseline이다.
+7. **불일치 처리**: 재현 실패와 평가 오답은 Issue로 등록하고 Change Loop를 탄다. 여기서 `knowledge/dev/`의 첫 KI가 생긴다.
+
+## 왜 이렇게 하나
+- **Hold-out 분리**: 지식을 뽑은 케이스로 다시 평가하면 외운 답을 맞히는 것이다. 처음 보는 케이스로 평가해야 지식이 일반화되는지 알 수 있다.
+- **Replay**: raw data가 있으므로 "문서의 수치가 다시 나오는가"로 추측한 분석 절차를 걸러낼 수 있다.
+- **전문가 질문 목록**: 문서에 적히지 않은 암묵지는 역분석으로 나오지 않는다. 질문과 답변을 `knowledge/raw/transcripts/`에 Capture해 다음 Distill의 원천으로 쓴다.
+
+## raw data가 없는 리포트
+재현할 수 없으므로 절차(무엇을 보고 어떤 기준으로 판단했나)만 추출해 Draft로 둔다. 전문가 리뷰나 이후 유사 케이스의 평가 결과가 근거로 붙을 때 승격한다. 평가는 수치 일치 대신 채점 기준표로 한다.
+
+## 끝났다는 기준
+- Distill 세트의 모든 케이스가 KI의 `source`로 한 번 이상 쓰였거나, 쓰이지 않은 이유가 `meta.md`에 있다.
+- `evals/baseline.json`에 Suite별 점수와 측정 일자가 있다.
+- `node ci/check-harness.mjs`가 통과한다.
+~~~~~
+
+~~~~~file path=docs/agentops/CHANGE_LOOP.md
+# Change Loop
+
+> `agent/`에 대한 변경 한 건이 지나는 경로. 사람의 변경과 에이전트의 자가 개선 제안이 같은 경로를 쓴다.
+
+## 경로
+1. **Signal**: 변경의 계기는 셋이다. Issue(`ops/issues/`), 새 KI, 자가 개선 제안(`evolution/proposals/`).
+2. **Prior Knowledge**: `knowledge/dev/`에서 같은 태그의 Lessons Learned·Failure Mode·Rejected를 먼저 조회한다. 이미 기각된 시도면 새 근거 없이 반복하지 않는다.
+3. **Eval Case**: 고치기 전에 실패를 재현하는 Eval Case를 등록한다. 등록 직후 실패하는 것을 확인한다. (`case-from-ki`)
+4. **Change Candidate**: `ops/changes/CHG-####.md`를 `status: proposed`로 만든다. 가설 하나, 대상 경로, 기대하는 점수 변화를 적는다. (`log-change`)
+5. **Eval Gate**: 변경 전 평가(`eval_before`) → 변경 적용 → 변경 후 평가(`eval_after`). 목표 케이스가 통과하는지, Regression Suite가 Baseline 아래로 떨어지지 않는지 본다. (`run-evals`, `ci/eval-gate.mjs`)
+6. **Decide**: 통과하면 `adopted`, 아니면 `rejected`로 닫고 변경을 되돌린다. 어느 쪽이든 Change Record는 남긴다.
+7. **Record · Distill**: `ops/changes/REGISTRY.md`에 한 줄을 추가하고, 배운 점을 `knowledge/dev/` KI로 추출한다. Baseline이 올랐으면 `evals/baseline.json`을 갱신한다.
+
+## Change Record가 답하는 질문
+| 질문 | 필드 |
+| --- | --- |
+| 왜 바꿨나 | `trigger` (ISS·KI·제안 ID), 가설 |
+| 무엇을 바꿨나 | `targets` (agent/ 경로), 변경 내용 |
+| 성능이 어떻게 달라졌나 | `eval_before`, `eval_after`, 평가 결과 표 |
+| 부작용은 | Regression 결과, 부작용 절 |
+| 그래서 어떻게 했나 | `status`, 결정과 이유 |
+| 무엇을 배웠나 | `knowledge` (추출한 KI ID) |
+
+## 규칙
+- **변경 하나에 가설 하나.** 여러 변경을 함께 평가하면 무엇이 효과였는지 알 수 없다.
+- **Eval Case 수정도 변경이다.** 채점 기준이나 정답을 바꾸면 Change Record를 남긴다.
+- **급한 수정**도 Change Record는 사후에라도 남긴다. 기록 없는 변경은 이후 모든 점수 변화의 원인 불명 요소가 된다.
+- **기반 모델·검색 인덱스 교체**는 `agent/` 변경과 같다. 전체 평가 후 Baseline을 다시 잡는다.
+- **롤백**은 새 Change Record가 아니라 원래 레코드의 `status: rolled-back`과 이유로 남긴다.
+
+## Traceability
+ID로 서로를 가리킨다. 어느 한 곳에서 시작해도 나머지를 따라갈 수 있다.
+
+```text
+ISS-0017 ──eval_case──▶ R-0021 ──(CHG.trigger)──▶ CHG-0031 ──knowledge──▶ L-0012
+   ▲                                                                        │
+   └────────── 유사 이슈가 오면 L-0012를 먼저 조회 (Prior Knowledge) ◀──────┘
+```
+
+## 기계가 확인하는 것
+- `node ci/check-harness.mjs --changed-base <ref>`: `agent/`가 바뀌었는데 Change Record가 없으면 실패. `adopted` 레코드에 전후 평가가 없으면 실패. `fixed` 이슈에 Eval Case가 없으면 실패.
+- `node ci/eval-gate.mjs`: 결과가 Baseline보다 낮은 Suite가 있으면 실패.
+~~~~~
+
+~~~~~file path=docs/agentops/GLOSSARY.md
+# Glossary
+
+> 이 템플릿에서 쓰는 용어. 비유의 틀: 에이전트는 신입, 분석 문서는 선배의 풀이 노트, Knowledge Base는 공식 업무 노트, 평가는 모의고사.
+
+| 용어 | 뜻 | 비유 |
+| --- | --- | --- |
+| Knowledge Item (KI) | 지식 한 가지를 담은 짧은 문서 파일 하나 | 업무 노트의 한 항목 |
+| Draft / Validated / Deprecated | KI의 상태. 초안 / 근거가 확인됨 / 더 이상 쓰지 않음 | 메모 / 공식 노트 등재 / 줄 그어 지운 항목 |
+| Capture | 원본 자료를 손대지 않고 보관 | 자료 모으기 |
+| Distill | 원본에서 핵심 지식만 뽑아 KI로 정리 | 긴 풀이에서 요령만 추리기 |
+| Reverse Analysis (역분석) | 결과물(분석 문서)을 보고 거꾸로 과정을 추적 | 완성된 요리를 보고 레시피 알아내기 |
+| Decision Heuristic | "이 상황이면 이 데이터를 보고 이 기준으로 판단한다"는 규칙 | 숙련자의 감각을 글로 적은 것 |
+| Data Catalog | 어떤 데이터가 어디에 어떤 뜻으로 있는지 정리한 지도 | 자료실 안내도 |
+| Query Pattern | 어떤 목적일 때 데이터를 어떻게 조회하는지 정리한 방법 | 자료실에서 원하는 서류 찾는 법 |
+| Data Caveat | 데이터를 볼 때 조심할 점 (단위, 중복, 시점 차이 등) | "이 표는 환불이 빠져 있음" 같은 주의 메모 |
+| Validate | 뽑은 지식이 맞는지 확인 | 검산 |
+| Replay (재현 검증) | 정리한 방법으로 다시 해 봤을 때 원래 문서의 수치가 나오는지 확인 | 같은 재료로 다시 만들어 같은 맛이 나는지 보기 |
+| Promote | 검증을 통과한 KI를 정식 등록 | 공식 노트에 올리기 |
+| Serve | 상황에 맞는 KI만 골라 에이전트에게 제공 | 필요한 페이지만 펼쳐 주기 |
+| Re-validation | 낡았을 수 있는 KI를 다시 검증 | 오래된 노트 다시 확인 |
+| Distill 세트 / Hold-out 세트 | 지식 추출에 쓰는 케이스 / 평가용으로만 남겨 둔 케이스 | 연습 문제 / 답을 안 본 실전 문제 |
+| Eval Case | 평가 문제 한 건. 입력과 기대 결과로 구성 | 시험 문제 + 모범 답안 |
+| Eval Suite | Eval Case 묶음 (Retrieval·Analysis·Regression) | 시험지 |
+| Blind 평가 | 정답 문서를 보여 주지 않고 평가 | 오픈북이 아닌 시험 |
+| Baseline | 변경 전후를 비교할 기준 점수 | 첫 모의고사 점수 |
+| Regression | 전에 되던 것이 변경 후 안 되게 되는 현상 | 새 단원을 공부했더니 앞 단원을 틀리는 것 |
+| Eval Gate | 평가 점수가 기준에 못 미치면 변경을 막는 관문 | 합격선 |
+| Issue (ISS) | 발견된 실패 사례 한 건 | 틀린 문제 |
+| Change Record (CHG) | 변경 한 건의 기록: 계기, 가설, 바꾼 것, 전후 점수, 결정 | "왜 무엇을 고쳤고 점수가 어떻게 됐나" 한 장 |
+| Change Registry | Change Record 전체와 요약표 | 변경 대장 |
+| Lessons Learned | 변경 과정에서 배운 점을 정리한 KI | 오답 노트의 교훈 |
+| Failure Mode | 반복해서 나타나는 실패 유형 | 자주 하는 실수 유형 |
+| ADR | 구조·방식을 왜 그렇게 정했는지 남긴 결정 기록 | 회의 결정 사항 |
+| Rejected Experiment | 시도했지만 효과가 없어 기각한 변경 | "해 봤는데 안 됐음" 메모 |
+| Self-Improvement Proposal | 에이전트가 실행 중 배운 것을 반영하자고 올린 제안 | 신입의 업무 개선 제안서 |
+| Trace | 에이전트 실행 한 번의 기록 | 풀이 과정 |
+| Traceability | Issue → Eval Case → Change Record → KI를 서로 따라갈 수 있는 성질 | 영수증처럼 근거를 거슬러 올라갈 수 있음 |
+~~~~~
+
+~~~~~file path=docs/agentops/INDEX.md
+# Sub-SSOT — AgentOps
+
+> 자가진화 에이전트를 개발할 때 지식·평가·변경을 다루는 방법론의 시작 문서다.
+> 목표는 하나다. 모든 변경에 대해 "왜 바꿨고, 무엇을 바꿨고, 성능이 어떻게 달라졌는가"에 답할 수 있어야 한다.
+
+## 세 축
+- **Knowledge Base** (`knowledge/`): 에이전트와 개발자가 아는 것. Domain·Data·Learned·Dev 네 영역, 같은 Knowledge Item(KI) 형식.
+- **Eval Suite** (`evals/`): 얼마나 잘하는가. Retrieval·Analysis·Regression 세트와 Baseline.
+- **Change Registry** (`ops/`): 무엇이 왜 바뀌었는가. Issue, Change Record, 실험.
+- 진화 대상은 `agent/`다. Eval Gate를 통과한 변경만 반영된다.
+
+## 불변 원칙
+1. `agent/` 변경에는 Change Record와 전후 평가가 따른다.
+2. 이슈는 고치기 전에 Eval Case로 등록한다.
+3. 근거 없는 KI는 Draft다.
+4. `knowledge/raw/`는 수정하지 않는다.
+5. Hold-out 케이스에서 지식을 추출하지 않는다.
+6. 자가 개선 제안도 같은 Eval Gate를 지난다.
+
+## 하루 작업 흐름
+- 새 원본(분석 케이스·스키마)이 들어왔다 → `distill-knowledge`
+- KI나 이슈가 생겼다 → `case-from-ki`
+- `agent/`를 고친다 → `log-change` → `run-evals`
+- 자가 개선 제안이 쌓였다 → `promote-evolution`
+- 스키마가 바뀌었거나 정기 점검이다 → `review-knowledge`
+
+## Source Map
+- `agent/INDEX.md`: 진화 대상의 구성과 변경 규칙
+- `knowledge/INDEX.md`: 영역, KI 형식, ID 규칙
+- `evals/INDEX.md`: Eval Case 형식, 러너 계약, Baseline
+- `ops/changes/REGISTRY.md`: 변경 한 줄 요약표
+- `ci/check-harness.mjs`, `ci/eval-gate.mjs`: 불변 원칙을 기계로 확인
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| KI가 쌓이고 관리되는 방식 | [KNOWLEDGE_LIFECYCLE.md](./KNOWLEDGE_LIFECYCLE.md) |
+| 변경 한 건이 지나는 경로 | [CHANGE_LOOP.md](./CHANGE_LOOP.md) |
+| 분석 케이스로 지식 베이스를 처음 채우기 | [BOOTSTRAPPING.md](./BOOTSTRAPPING.md) |
+| 용어 해설 | [GLOSSARY.md](./GLOSSARY.md) |
+| 시나리오별 구조 수정 | [../adaptation/INDEX.md](../adaptation/INDEX.md) |
+| 절차 스킬 | [../tools/INDEX.md](../tools/INDEX.md) |
+~~~~~
+
+~~~~~file path=docs/agentops/KNOWLEDGE_LIFECYCLE.md
+# Knowledge Lifecycle
+
+> Knowledge Item(KI)이 생기고, 검증되고, 쓰이고, 폐기되는 과정. 네 영역 모두 같은 여섯 단계를 따른다.
+
+## 네 영역
+| 영역 | 담는 것 | 원천 | 소비자 |
+| --- | --- | --- | --- |
+| `knowledge/domain/` | 사람이 하던 판단 (상황 → 볼 데이터 → 판단 기준) | 분석 케이스, 리포트, 인터뷰, 전문가 교정 | 대상 에이전트 |
+| `knowledge/data/` | 방대한 DB·RAG에서 올바른 데이터를 찾는 법 | 스키마, 성공·실패한 쿼리, 검색 결과 분석 | 대상 에이전트 |
+| `knowledge/learned/` | 에이전트가 실행 중 스스로 발견한 것 | 트레이스, 자가 개선 제안 | 대상 에이전트 (Validate 후) |
+| `knowledge/dev/` | 에이전트를 만드는 과정에서 배운 것 | Issue, Change Record, 기각된 실험 | 개발 에이전트·사람 |
+
+## 여섯 단계
+1. **Capture**: 원본을 `knowledge/raw/`에 그대로 둔다. 수정하지 않는다. 개발 과정의 원본은 `ops/`의 Issue와 Change Record다.
+2. **Distill**: 원본에서 KI 하나 = 사실 하나로 추출한다. 상태는 `draft`. (`distill-knowledge`)
+3. **Validate**: 근거를 만든다. 근거는 셋 중 하나다.
+   - Eval Case: KI를 평가 케이스로 만들고 통과를 확인한다. (`case-from-ki`)
+   - Replay: raw data가 있는 케이스에서 KI대로 조회해 원본 문서의 수치가 재현되는지 확인한다.
+   - Change Record: KI를 적용한 변경의 전후 점수.
+4. **Promote**: 근거를 `evidence`에 적고 `status: validated`, `last_verified`를 갱신한 뒤 영역 `INDEX.md`에 등록한다. 승격 권한은 `docs/adaptation/AUTONOMY_LEVELS.md`의 현재 단계를 따른다.
+5. **Serve**: 전체를 컨텍스트에 싣지 않는다. 상황 `tags`로 검색해 관련 KI만 제공한다. 운영 실행에는 `validated`만, `draft`는 실험 실행에서만 쓴다.
+6. **Maintain**: 낡았거나 충돌하면 Re-validation 한다. 진 쪽은 `status: deprecated`로 바꾸고 `superseded_by`로 대체 KI를 가리킨다. 삭제하지 않는다. (`review-knowledge`)
+
+## KI 형식
+모든 KI는 frontmatter를 가진다. `ci/check-harness.mjs`가 검사한다.
+
+```yaml
+---
+id: Q-0012                 # 영역 내 고유. 접두사는 knowledge/INDEX.md 참고
+type: query-pattern
+status: validated          # draft | validated | deprecated
+tags: [매출, 주간집계]
+source: [raw/cases/CASE-003]
+evidence: [replay:CASE-003, evals/retrieval/R-0021]
+last_verified: 2026-01-15
+superseded_by: null
+---
+```
+
+본문은 유형별 `_TEMPLATE.md`의 소제목을 따른다. 100줄 이내, 사실 하나.
+
+## 관리 규칙
+- **근거 필수**: `validated`는 `evidence`가 비어 있을 수 없다.
+- **충돌은 평가로 결정**: 같은 상황에 상반된 KI가 있으면 둘 다 평가에 올리고 진 쪽을 Deprecated 처리한다.
+- **Re-validation 계기**: 스키마 변경(관련 `data/` KI), 기반 모델 교체, `last_verified`가 오래된 KI, 관련 Eval Case 실패.
+- **Hold-out 격리**: `evals/splits.json`의 `holdout` 케이스는 KI의 `source`가 될 수 없다.
+- **Rejected도 자산**: 효과가 없던 시도는 `knowledge/dev/rejected/`에 남긴다. 같은 시도의 반복을 막는다.
+- **분할**: 영역 INDEX가 60줄을 넘으면 하위 영역으로 나누고, KI가 수백 건이 되면 `docs/adaptation/SCENARIOS.md`의 "지식량 급증" 행을 따른다.
+
+## 개발 과정 지식이 쌓이는 지점
+- Change Record가 `adopted`되면 → Lessons Learned (무엇이 통했나, 부작용은)
+- Change Record가 `rejected`·`rolled-back`되면 → Rejected Experiment
+- 같은 원인의 Issue가 2회 이상이면 → Failure Mode
+- 구조·방식을 정했으면 → ADR (`knowledge/dev/decisions/`)
+- 평가 설계에서 배운 점 → Lessons Learned (tag: eval-design)
+~~~~~
+
+~~~~~file path=docs/share/AI_MODELS.md
+# AI Models — 기능별 모델 배분
+
+> AI 기능을 설계·추가할 때 읽는 topic 문서다. 앱이 런타임에 부르는 모델의 사실(어떤 기능 → 어떤 모델 → 키·엔드포인트)을 기록한다.
+> 개발 에이전트 모델(`.claude/agents/*`)은 여기 대상이 아니다.
+> AI 기능이 없는 프로젝트면 이 파일과 링크를 지운다.
+
+## 배분 원칙
+- **판단(분류·라우팅·점수·예/아니오·게이트)** → Jev 같은 decision model. 출력이 타입이 정해진 값과 확률이라 코드가 바로 분기한다.
+- **생성(채팅·요약·초안·설명문)** → 범용 LLM. 자유 텍스트가 필요한 곳에만 쓴다.
+- **판단 → 생성 순서**로 묶는다. 예: Jev가 의도/우선순위를 고르고, 필요할 때만 LLM이 답변을 쓴다. LLM 출력을 다시 파싱해 판단하지 않는다.
+- 확률(confidence)이 임계값보다 낮으면 사람 검토나 LLM 보조 판단으로 넘기는 fallback을 설계에 넣는다. 임계값은 실제 데이터로 정한다.
+
+## 기능 → 모델 표 (프로젝트가 채운다)
+| 기능 | 성격 | 모델 | 질문 타입 / 출력 | 임계값·fallback | 코드 위치 |
+| --- | --- | --- | --- | --- | --- |
+| <예: 문의 티켓 라우팅> | 판단 | `jev-latest` | Choice(부서) | conf < <0.x> → 수동 큐 | `<path>` |
+| <예: 상담 채팅> | 생성 | <LLM 모델 ID> | 텍스트 스트리밍 | — | `<path>` |
+
+## Jev 참고 사실 (2026-11-06 조사, 사용 전 공식 문서로 재확인)
+- TypeSafe AI의 hosted decision model이다. 텍스트를 생성하지 않는다. state(텍스트/JSON)와 typed question을 받아 구조화된 답과 보정된 확률을 돌려준다.
+- 질문 타입: `Choice`(옵션별 확률과 전체 confidence), `Score`, `Noul`(예/아니오).
+- 엔드포인트: 출처마다 다르다(`api.typesafe.ai/v1/systemone` 또는 `thejevai.com/v1/systemone`). 인증은 Bearer 토큰이다. 공식 문서 기준으로 확정해 INDEX env에 적는다.
+- 모델 ID: `jev-1.13.0`, 별칭 `jev-latest`/`jev-preview`. 게이트웨이 경유 시 `typesafe/jev-1.13`(OpenRouter 등). Cloudflare Workers AI, Vercel AI Gateway에서도 쓸 수 있다고 한다.
+- 입력은 state와 question을 합쳐 약 32K 토큰. 큰 문서는 요약하거나 필요한 필드만 추린 뒤 state로 보낸다.
+- 비용(보도 기준): 입력 1M 토큰당 $0.042, 출력 $0.
+- 주의: "환각 없음" 같은 주장은 벤더 마케팅이다. 자체 4-workflow 벤치마크 정확도는 약 68%로 보고됐다. 도입 전 우리 데이터로 정확도를 측정한다(검증수단 필수).
+
+## 키와 설정
+- 키는 코드·문서에 쓰지 않는다. `.env`(git 제외)에 `JEV_API_KEY` 같은 이름으로 두고, 변수명·엔드포인트·모델 ID는 해당 영역 `INDEX.md`의 env/Commands 항목에 기록한다.
+- 모델 ID는 설정값 한 곳에서 읽는다. 별칭(`jev-latest`)은 개발에만 쓰고, 운영은 고정 버전을 쓴다.
+
+## 설계 체크리스트 (pre-spec / Task Brief에 반영)
+- 이 기능은 판단인가 생성인가? 표에 한 행을 추가했는가?
+- 판단이면 질문 타입과 옵션 목록이 타입(enum/schema)으로 정의됐는가?
+- 낮은 confidence, 타임아웃, API 실패 때의 fallback이 정해졌는가?
+- 종료조건에 라벨된 샘플 기준 정확도 측정이 들어갔는가?
+~~~~~
+
+~~~~~file path=docs/share/INDEX.md
+# Sub-SSOT — share
+
+> 앱을 가로지르는 공통 작업의 시작 문서다.
+> <공유 패키지 유무와 공통 경계(workspace, API contract)를 한 줄로>
+
+## Workspace And Contracts
+
+- 루트 `package.json`은 패키지 매니저 버전, 루트 dev dependency, workspace-wide overrides를 가진다.
+- 앱별 의존성과 test/build 명령은 각 앱 `package.json`이 기준이다.
+- <프론트 REST wrapper와 백엔드 route path는 함께 바꾼다> 같은 "함께 바꾸는 쌍" 규칙을 적는다.
+- 로컬 agent/skill memory 폴더는 참고 자료이며 제품 코드 기준이 아니다.
+
+## Reference Map
+
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| 워크스페이스 명령과 CI/deploy | [WORKSPACE_CI.md](./WORKSPACE_CI.md) |
+| AI 기능 설계·모델 배분(판단=Jev, 생성=LLM) | [AI_MODELS.md](./AI_MODELS.md) |
+| <end-to-end 흐름 topic> | [<TOPIC>.md](./<TOPIC>.md) |
+~~~~~
+
+~~~~~file path=docs/tools/INDEX.md
+# Workflow Tools
+
+> 반복 가능한 agent workflow와 보조 로그의 시작 문서다.
+
+## 유의사항
+
+이곳의 workflow 정의는 기본적으로 인간이 직접 수정한다.
+단, 사용자가 명시적으로 workflow 실행/갱신을 요청한 경우 `RESEARCH.md` 같은 실행 로그와 낡은 라우팅 문구는 갱신할 수 있다.
+
+## Reference Map
+
+| 도구 | 참조 |
+| --- | --- |
+| Maintain highway | [maintain-highway/SKILL.md](./maintain-highway/SKILL.md) |
+| Maintain highway log | [maintain-highway/RESEARCH.md](./maintain-highway/RESEARCH.md) |
+| Clarify pre-spec | [clarify-pre-spec/SKILL.md](./clarify-pre-spec/SKILL.md) |
+| Open worktree | [open-worktree/SKILL.md](./open-worktree/SKILL.md) |
+| Close worktree | [close-worktree/SKILL.md](./close-worktree/SKILL.md) |
+| Empirical coding (Task Brief·검증 우선·규칙 추가 기준) | [empirical-coding/SKILL.md](./empirical-coding/SKILL.md) |
+| Maintenance routines | [empirical-coding/routines.md](./empirical-coding/routines.md) |
+| Prune harness (모델 세대 교체 시 ablation) | [prune-harness/SKILL.md](./prune-harness/SKILL.md) |
+| Model challenges log | [prune-harness/CHALLENGES.md](./prune-harness/CHALLENGES.md) |
+| Distill knowledge (원본 → KI Draft, 역분석) | [distill-knowledge/SKILL.md](./distill-knowledge/SKILL.md) |
+| Case from KI / Issue (→ Eval Case) | [case-from-ki/SKILL.md](./case-from-ki/SKILL.md) |
+| Log change (agent/ 변경 기록·전후 평가) | [log-change/SKILL.md](./log-change/SKILL.md) |
+| Run evals (평가 실행·Baseline 비교) | [run-evals/SKILL.md](./run-evals/SKILL.md) |
+| Promote evolution (자가 개선 제안 → Eval Gate) | [promote-evolution/SKILL.md](./promote-evolution/SKILL.md) |
+| Review knowledge (Re-validation·충돌·Deprecated) | [review-knowledge/SKILL.md](./review-knowledge/SKILL.md) |
+~~~~~
+
+~~~~~file path=docs/tools/case-from-ki/SKILL.md
+---
+name: case-from-ki
+description: Knowledge Item이나 Issue를 Eval Case로 만들 때 사용한다. 이슈를 고치기 전, KI를 Validated로 올리기 전에 실행한다. "/case-from-ki", "평가 케이스 추가" 요청에 사용한다.
+---
+
+# Case From KI / Issue
+
+## 목적
+KI나 Issue를 고정된 Eval Case로 바꾼다. 이슈는 고치기 전에 케이스가 되어야 하고, KI는 케이스가 근거가 되어야 Validated가 된다. 형식은 `evals/INDEX.md`.
+
+## 입력
+- KI ID, Issue ID, 또는 Hold-out 분석 케이스 ID.
+
+## 절차
+1. **Suite를 고른다.**
+   - 맞는 데이터를 가져왔는가 → `evals/retrieval/` (`R-`)
+   - 가져온 데이터로 내린 판단이 맞는가 → `evals/analysis/` (`A-`)
+   - 과거에 고친 실패가 다시 생기지 않는가 → `evals/regression/` (`G-`)
+   한 Issue가 조회와 분석 둘 다 걸리면 케이스를 둘로 나눈다.
+2. **`_TEMPLATE.json`을 복사해 채운다.**
+   - `input`: 에이전트가 실제로 받는 것만 넣는다. 정답이 드러나는 힌트를 넣지 않는다.
+   - `expected`: 기대 결과와 채점 기준. 수치 일치면 `grading: exact`, 판단이면 `rubric`과 `criteria` 목록.
+   - `source`: 출처 KI·Issue·케이스 ID.
+3. **출처 케이스의 Split을 확인한다.** Blind 평가용은 `holdout` 케이스로만 만든다. `distill` 케이스로 만든 것은 `notes`에 재현 확인용이라고 적는다 (Baseline에 넣지 않는다).
+4. **한 번 실행한다.** Issue에서 온 케이스는 지금 실패해야 정상이다. 통과하면 실패를 재현하지 못한 것이므로 `input`을 다시 본다.
+5. **서로 연결한다.** Issue의 `eval_case`, KI의 `evidence`(통과한 경우)에 케이스 ID를 적는다.
+
+## 가드레일
+- 기존 Eval Case의 `expected`나 채점 기준을 고치지 않는다. 고쳐야 하면 Change Record로 남긴다.
+- 사람의 결론이 정답이다. 에이전트의 출력을 보고 정답을 정하지 않는다.
+- 정답을 확정할 수 없으면 만들지 않고 전문가 질문으로 남긴다.
+
+## 종료 조건과 보고
+- `node ci/check-harness.mjs` 통과.
+- 보고: 만든 케이스 ID, Suite, 현재 통과/실패, 연결한 Issue·KI.
+~~~~~
+
+~~~~~file path=docs/tools/clarify-pre-spec/SKILL.md
+---
+name: clarify-pre-spec
+description: Use when 사용자의 모호한 아이디어, 요구사항, 티켓 초안을 비개발자도 읽고 수정할 수 있는 pre-spec ticket/issue 또는 INDEX 기반 ticket set으로 구체화해야 할 때
+---
+
+# Clarify Pre-Spec
+
+## 목적
+모호한 요구를 사용자와 여러 번 질의응답하며 개발 전 단계의 `pre-spec` ticket/issue로 만든다. 산출물은 기획/운영/디자인/개발자가 함께 읽을 수 있어야 한다.
+
+## 사용 시점
+- “요구사항 정리”, “티켓으로 내려줘”, “scope 정리”, “pre-spec”, “issue 초안” 요청
+- 사용자가 서비스 화면을 써본 경험은 있지만 내부 기술 구조를 모르는 경우
+- 기존 문서가 feature spec처럼 커져서 실행 가능한 ticket으로 낮춰야 하는 경우
+- 같은 스킬을 다시 실행해 기존 ticket의 부족한 부분을 찾아 수정하려는 경우
+
+## 사용하지 않을 때
+- 이미 승인된 spec을 구현 계획으로 쪼개거나 내부 구현 방식을 확정하는 단계
+- 단순 오탈자 수정처럼 질의응답이 필요 없는 문서 편집
+
+## 핵심 원칙
+- 비개발자 문서가 먼저다.
+- 사용자가 백엔드/프론트 기술스택을 모른다고 가정한다.
+- 티켓 검토자에게 내부 구현 방식, 코드 구조, API/DB 유무, 마이그레이션 여부를 결정하게 하지 않는다.
+- 내부 구현명과 기술 판단은 꼭 필요할 때만 “AI 확인 필요” 또는 “spec 단계 확인”으로 둔다.
+- 필요한 코드베이스 정보는 AI가 `docs/SSOT.md`부터 직접 확인한다.
+- 사용자가 모르는 기술 정보를 묻지 않는다.
+- 결정된 것과 미결정을 분리한다.
+- pre-spec은 “무엇을 왜 바꿀지”를 정하고, spec은 “어떻게 만들지”를 정한다.
+- 기능의 현재 구현 유무나 가능한 구현 방식은 pre-spec 질문의 대상이 아니라 spec/구현 단계의 확인 대상이다.
+- 완성도가 부족하면 한 번에 끝내지 말고 계속 구체화한다.
+
+## 반복 실행 모드
+같은 스킬을 기존 산출물에 다시 실행하면 새 문서를 만들기보다 수정 모드로 들어간다.
+
+수정 모드 절차:
+- 기존 `/artifacts/issues/*-ticket.md` 또는 `/artifacts/issues/*-ticket/INDEX.md` 문서를 읽는다.
+- ticket set이면 `INDEX.md`를 먼저 읽고 연결 문서의 해석 충돌 여부를 확인한다.
+- 원래 요청, 현재 문서, 새 사용자 피드백을 비교한다.
+- 빠진 결정, 모호한 표현, 너무 기술적인 문장, 복잡도 대비 과한 분량을 찾는다.
+- 부족한 부분만 질문하고, 합의된 내용만 기존 문서에 반영한다.
+
+## 절차
+### 1. 원문 보존
+사용자의 최초 요청을 짧게 인용하거나 요약한다.
+
+확인할 것: 실제 문제, 확정된 결정, 여러 해석이 가능한 표현, 포함/제외 범위.
+
+### 2. 컨텍스트 확인
+먼저 `docs/SSOT.md`를 읽고 관련 문서와 영역을 따라간다.
+
+코드베이스는 현재 서비스 용어, 기존 화면/흐름 충돌, “기존 정책을 따른다”라고 쓸 근거 확인에만 참고한다.
+코드베이스에서 확인한 API/DB/컴포넌트 유무를 사용자에게 결정 질문으로 되돌리지 않는다.
+
+사용자에게 기술스택, 폴더 구조, 내부 구현명, API 존재 여부, DB 필드/마이그레이션 필요 여부를 묻지 않는다.
+필요하면 pre-spec에는 “spec 단계에서 구현 가능 방식 확인”으로 남긴다.
+
+### 3. 모호성 진단
+다음 빈칸을 찾는다.
+
+| 분류 | 확인할 내용 |
+| --- | --- |
+| 목적 | 왜 필요한가 |
+| 사용자 | 누가 영향을 받는가 |
+| 범위 | 이번 티켓에 포함되는가 |
+| 제외 | 후속 티켓으로 미룰 것은 무엇인가 |
+| 정보 | 어떤 개념을 분리하거나 보존하는가 |
+| 화면 | 최소 변경인지 새 화면인지 |
+| 정책 | 업무상 누가 할 수 있어야 하고 어떤 예외를 막아야 하는가 |
+| 완료 기준 | 무엇을 보면 끝났다고 볼 수 있는가 |
+
+### 4. 질의응답
+객관형 선택과 주관형 답변을 섞어 구체화한다.
+
+객관형 질문 규칙:
+- 선택지는 비개발자가 이해할 수 있는 말로 쓰고 2~4개로 제한한다.
+- 각 선택지에는 의미와 이유를 붙인다.
+- 추천 옵션에는 `(추천)`을 붙이고 추천 사유를 설명한다.
+- 선택지는 사용자가 판단할 수 있는 업무 결과, 화면 동작, 운영 정책 중심으로 쓴다.
+- 코드 구조, API 추가, DB 컬럼, soft delete/hard delete 같은 구현 선택지는 묻지 않는다.
+
+객관형 예시:
+```text
+이번 티켓의 성격은 무엇에 가깝나요?
+1. 기존 화면에 최소 기능 추가 (추천): 사용자가 이미 쓰는 흐름에서 필요한 동작만 추가합니다.
+2. 새 관리 화면까지 포함: 사용자가 직접 관리할 수 있지만 범위가 커집니다.
+3. 정책 결정만: 개발 전 합의 문서로는 가볍지만 바로 구현하기엔 부족합니다.
+```
+
+금지 질문 예시:
+```text
+이 기능은 soft delete로 할까요, hard delete로 할까요?
+DB에 deleted_at을 추가해야 할까요?
+현재 DELETE API가 없는데 새 endpoint를 만들까요?
+```
+
+허용 질문 예시:
+```text
+삭제 후 일반 회원 목록과 검색 결과에서 이 회원이 보이지 않아야 하나요?
+과거 결제, 문서, 주문 기록은 관리 확인용으로 남아 있어야 하나요?
+삭제 권한은 조직 관리자에게만 둘까요, 매니저도 포함할까요?
+```
+
+주관형 질문 규칙:
+- 사용자의 맥락, 불편, 예외, 실제 사용 사례는 주관형으로 묻는다.
+- 이해가 어려운 부분을 말해주면 풀어서 설명하겠다는 안내를 붙인다.
+
+주관형 예시:
+```text
+이 변경이 필요한 가장 큰 이유를 실제 업무 상황 기준으로 설명해주세요.
+잘 이해가 가지 않는 부분이 있으면 그 부분만 말해주셔도 됩니다. 제가 풀어서 다시 설명하겠습니다.
+```
+
+질문 운영: 기본은 한 번에 한 질문이다. 밀접한 질문은 최대 3개까지 묶고, 보통 5~8개 안에서 끝내되 완성도가 낮으면 더 반복한다.
+
+### 5. 접근안 제시
+핵심 모호성이 풀리면 2~3개 접근안을 제시한다. 각 접근안에는 포함 범위, 제외 범위, 장점, 리스크, 추천 여부를 적는다. 추천안은 하나로 좁히고 이유를 말한다.
+
+### 6. 산출물 구조 결정
+핵심 범위가 정리되면 단일 ticket으로 충분한지, ticket set으로 나눠야 하는지 먼저 판단한다.
+
+단일 ticket을 선택한다:
+- 한 화면 또는 한 정책 변경으로 설명할 수 있다.
+- 선행 작업과 후속 작업의 의존성이 약하다.
+- 한 명 또는 한 작은 작업 단위로 구현 가능하다.
+- 100~200줄 내외로 제품 의도, 범위, 완료 기준을 담을 수 있다.
+
+`INDEX + linked files ticket set`을 선택한다:
+- 도메인/데이터 모델, UI, 업무 정책, 마이그레이션처럼 작업 성격이 다르다.
+- 실행 순서나 병렬 가능 범위를 명확히 해야 한다.
+- 여러 엔지니어가 나눠 구현할 가능성이 높다.
+- 단일 ticket이 200줄을 넘거나, 한 ticket 안에 서로 다른 완료 기준이 섞인다.
+- 전체 제품 의도와 각 구현 단계의 scope를 분리하지 않으면 맥락 손실이 생긴다.
+
+ticket set을 선택하면 `INDEX.md`가 제품 의도와 정책 기준의 SSOT가 되고, 연결 문서는 실제 구현 가능한 step 또는 보조 자료 단위가 된다.
+연결 문서 간 해석이 충돌하면 `INDEX.md`를 우선한다.
+
+### 7. pre-spec 작성
+필요한 템플릿을 참고한다.
+- 단일 ticket: [templates/single-ticket-template.md](./templates/single-ticket-template.md)
+- ticket set: [templates/ticket-set-template.md](./templates/ticket-set-template.md)
+
+단일 ticket 기본 포맷:
+```markdown
+# Ticket: <짧은 제목>
+
+## Summary
+## Intent
+## Confirmed Decisions
+## Scope
+## Non-Goals
+## Open Questions
+## Acceptance Criteria
+## Follow-up
+```
+
+필요할 때만 `User Impact`, `Migration Notes`, `Policy Notes`, `UI Minimum Changes`, `Data Concepts`를 추가한다.
+
+ticket set `INDEX.md`에는 최소한 다음 섹션을 둔다:
+- `Ticket Set`: 연결 문서 목록, 권장 실행 순서, 충돌 시 `INDEX.md` 우선 원칙
+- `Summary`, `Intent`
+- 전체 `Confirmed Decisions`
+- 전체 `Scope`, `Non-Goals`
+- `Linked File Boundary`: 각 연결 문서가 담당하는 범위와 제외 범위
+- 전체 `Acceptance Criteria`
+
+ticket set 연결 문서에는 최소한 다음 섹션을 둔다:
+- `Parent`: `INDEX.md` 링크, ticket set 이름, 실행 순서, dependency
+- `Summary`, `Intent`
+- 해당 step의 `Confirmed Decisions`, `Scope`, `Non-Goals`
+- 필요 시 `Data/API/UI/Policy Notes`
+- `Acceptance Criteria`
+- `Handoff From` 또는 `Handoff To`: 앞뒤 연결 문서와의 계약
+
+### 8. 개발팀 공유 메시지
+ticket set을 만들었거나 사용자가 공유 문구를 원하면 마지막에 3~6줄의 짧은 메시지를 함께 제공한다.
+메시지는 각 문서의 의미, 권장 진행 순서, `INDEX.md` 우선 원칙만 담는다.
+
+## 산출물 기준
+좋은 pre-spec:
+- 비개발자가 읽어도 의미를 이해할 수 있다.
+- 포함/제외 범위가 명확하다.
+- 미결정 사항이 숨겨져 있지 않다.
+- 수용 기준이 행동 또는 결과로 검증 가능하다.
+- 연결 문서만 읽어도 구현 단위가 보이고, 정책 판단은 `INDEX.md`로 회수된다.
+
+나쁜 pre-spec:
+- 내부 구조와 구현 방식 설명이 중심이다.
+- “적절히”, “잘”, “유연하게” 같은 표현이 많다.
+- 결정되지 않은 내용을 확정처럼 쓴다.
+- 큰 기능을 하나의 ticket에 넣어 구현 순서와 책임 경계가 흐려진다.
+
+## 저장 위치
+단일 ticket은 `/artifacts/issues/YYYY-MM-DD-<topic>-ticket.md` 형태로 저장한다.
+
+ticket set은 디렉터리로 저장한다.
+- index: `/artifacts/issues/YYYY-MM-DD-<topic>-ticket/INDEX.md`
+- linked file: `/artifacts/issues/YYYY-MM-DD-<topic>-ticket/<sub-topic>.md`
+- linked file: `/artifacts/issues/YYYY-MM-DD-<topic>-ticket/<attachment>.md`
+
+`00-epic`, `01-<step>` 같은 번호 prefix 파일명은 사용하지 않는다.
+실행 순서는 파일명이 아니라 `INDEX.md`의 `Ticket Set` 섹션에서 명시한다.
+연결 파일명은 kebab-case로 쓰고, 예시는 `policy.md`, `ui-flow.md`, `migration-notes.md`처럼 목적을 드러내는 이름을 쓴다.
+pre-spec ticket은 100줄 내외를 권고하되, 복잡도에 따라 200줄 내외까지 허용한다.
+ticket set의 `INDEX.md`는 길어질 수 있지만, 연결 문서는 각각 독립 구현 가능한 범위나 보조 자료로 유지한다.
+
+분량 기준:
+- 간단한 수준: 100줄 내외
+- 복잡도 있는 수준: 150줄 내외
+- 매우 구체적인 수준: 200줄 내외
+- 200줄을 넘고 구현 성격이 둘 이상이면 ticket set으로 분리 검토
+
+## 완료 전 점검
+- 원문 의도가 보존되었는가
+- 결정된 것과 미결정이 분리되었는가
+- 비개발자가 수정 가능한 문장인가
+- 사용자에게 기술스택 지식을 요구하지 않는가
+- 산출물이 단일 ticket 또는 `YYYY-MM-DD-<topic>-ticket/INDEX.md` 기반 ticket set 형식에 맞는가
+- 복잡도에 맞는 권장 분량을 지키는가
+- Scope와 Non-Goals가 충돌하지 않는가
+- Acceptance Criteria가 검증 가능한가
+- 완성도가 낮은 항목을 추가 질문으로 다시 구체화했는가
+- ticket set이면 `INDEX.md`에서 모든 연결 문서를 레퍼런스하는가
+- ticket set이면 각 연결 문서의 dependency, handoff, 완료 기준이 분리되어 있는가
+- ticket set이면 연결 문서 간 해석 충돌 시 `INDEX.md`를 우선한다는 원칙이 명시되어 있는가
+
+## 다음 단계
+pre-spec이 승인되면 spec 작성 또는 implementation plan으로 넘어간다. 승인 전에는 구현 계획, 코드 수정, 상세 기술 설계를 시작하지 않는다.
+구현 단계에서는 이 ticket을 [empirical-coding](../empirical-coding/SKILL.md) Task Brief로 옮긴다: `Intent`·`Scope` → 목표, `Non-Goals` → 가드레일, `Acceptance Criteria` → 종료 조건. 검증 수단은 AI가 spec 단계에서 정한다.
+~~~~~
+
+~~~~~file path=docs/tools/clarify-pre-spec/templates/single-ticket-template.md
+# Ticket: <short title>
+
+## Summary
+<What changes, in one or two short paragraphs.>
+
+## Intent
+<Why this change matters in product/workflow terms.>
+
+## Confirmed Decisions
+- <Decision already agreed.>
+- <Decision already agreed.>
+
+## Scope
+- <Included behavior or surface.>
+- <Included behavior or surface.>
+
+## Non-Goals
+- <Explicitly excluded behavior or surface.>
+- <Deferred follow-up.>
+
+## Policy Notes
+- <Business rule, exception, migration principle, or operational policy.>
+
+## UI Minimum Changes
+- <Minimum visible change needed, if applicable.>
+
+## Data Concepts
+- <Concept name>: <Plain-language meaning.>
+
+## Guide Impact
+- Status: None | Update Required | Updated
+- Target Guide: <guide title or none>
+- Reason: <user-facing screen/workflow change summary>
+
+## Open Questions
+- <Question that still needs a product decision.>
+
+## Acceptance Criteria
+- <Observable result that proves the ticket is done.>
+- <Observable result that proves the ticket is done.>
+
+## Follow-up
+- <Future ticket or later design topic.>
+~~~~~
+
+~~~~~file path=docs/tools/clarify-pre-spec/templates/ticket-set-template.md
+# Ticket Set Template
+
+Use one `INDEX.md` plus linked files when a pre-spec needs phased implementation or supporting attachments.
+All files live in the same `artifacts/issues/YYYY-MM-DD-<topic>-ticket/` directory.
+
+## Index File
+Path: `artifacts/issues/YYYY-MM-DD-<topic>-ticket/INDEX.md`
+
+```markdown
+# Ticket Set: <short title>
+
+## Ticket Set
+This document is the index for the `<topic>` ticket set.
+Actual implementation or supporting detail is split into the linked files below.
+If linked files conflict, this `INDEX.md` is the product intent and policy source of truth.
+
+- [<sub-topic title>](./<sub-topic>.md)
+- [<attachment title>](./<attachment>.md)
+- [<another sub-topic title>](./<another-sub-topic>.md)
+
+Recommended execution order: `<sub-topic> -> <another-sub-topic>`.
+
+## Summary
+## Intent
+## Current Findings
+## Confirmed Decisions
+## Scope
+## Non-Goals
+## Linked File Boundary
+## Policy Notes
+## Open Questions
+## Acceptance Criteria
+## Follow-up
+```
+
+## Linked File
+Path: `artifacts/issues/YYYY-MM-DD-<topic>-ticket/<sub-topic>.md`
+
+```markdown
+# <Sub-topic Title>
+
+## Parent
+- Index: [Ticket Set](./INDEX.md)
+- Ticket set: `<topic>`
+- Execution order: <position or not applicable>
+- Primary dependencies: <none or linked files>
+
+## Summary
+## Intent
+## Confirmed Decisions
+## Scope
+## Non-Goals
+## Notes
+## Acceptance Criteria
+## Handoff From Previous Linked File
+## Handoff To Next Linked File
+```
+~~~~~
+
+~~~~~file path=docs/tools/close-worktree/SKILL.md
+---
+name: close-worktree
+description: Use only when the user explicitly invokes the close-worktree skill by name, folder path, or direct SKILL.md reference
+---
+
+# Close Worktree
+
+워크트리를 닫기 전 필요한 정리 작업 모듈 실행하는 라우터 스킬이다.
+각 모듈은 서브 에이전트 (Subagent Driven)으로 '병렬'로 실행한다.
+상세 판단과 파일 변경 및 산출물 작성은 각 모듈을 따른다.
+
+## 병렬 처리
+
+- 각 모듈은 서브에이전트를 통해 병렬로 실행된다.
+- 안정적인 병렬 처리를 위해, 각 모듈에게 필요한 정확하고 간결한 문맥을 제공한다.
+
+## Modules
+
+1. [maintain-highway](../maintain-highway/SKILL.md)
+   - 모듈 스킬을 'selected target' 모드로 실행한다.
+   - 모듈에게 전달하는 영역/토픽은 "local main 브랜치와 비교한, 워크트리의 변경점"
+   - 스킬에 이번 워크트리 변경 범위를 같이 전달한다.
+
+2. guide-impact(선택 모듈, 사용자 가이드가 있는 프로젝트만)
+   - 이번 워크트리 변경점이 사용자 가이드에 영향을 주는지 판단한다.
+   - 필요하면 수정 필요 사유와 권장 반영 방향을 report 입력으로 남긴다.
+   - 가이드 업데이트가 필요하면 원본 레포의 `guide-update-quality.md`를 가져와 따른다.
+   - 사용자 승인 전에는 가이드 본문을 수정하지 않는다.
+
+3. [writing-report](./writing-report.md)
+   - 워크트리에서 진행된 개발 내용에 대해 report artifact를 작성한다.
+
+4. [clean-artifacts](./clean-artifacts.md)
+   - report 이후 남은 산출물 정리 규칙을 적용한다.
+   - 이번 워크트리에서 산출된 spec/plan 파일을 살펴본다.
+   - 이번 워크트리 작업 도입부에서 호출된 issue 파일을 살펴본다.
+
+## Execution Rules
+
+- `maintain-highway`와 `guide-impact`는 서브에이전트 기반으로 병렬 실행한다.
+- `writing-report`는 두 모듈 결과를 받은 뒤 작성한다.
+- `clean-artifacts`는 report 작성 이후 실행한다.
+
+## Final Response
+
+- 최종 응답에는 report 경로, docs 결과, Guide Impact 결과, 검증 결과, 남은 위험을 포함한다.
+- 그밖에, 워크트리 변경점에 대한 수동 테스트 방법을 재언급 한다.
+~~~~~
+
+~~~~~file path=docs/tools/close-worktree/clean-artifacts.md
+# Clean Artifacts
+
+close-worktree의 모듈이다.
+이번 워크트리에서 생성했고 같은 워크트리에서 해결된 issue/spec/plan 산출물을 legacy로 옮긴다.
+Report는 옮기지 않는다.
+
+## Targets
+
+- Issue: `artifacts/issues/<solved_in_this_worktree>`
+- Spec: `artifacts/specs/<solved_or_generated_in_this_worktree>`
+- Plan: `artifacts/plans/<solved_or_generated_in_this_worktree>`
+- 세 대상은 파일명 또는 디렉터리명의 날짜와 topic이 거의 같아야 한다.
+
+## Destination
+
+- Issues: `legacy/<YYYY-MM>/issues/`
+- Specs: `legacy/<YYYY-MM>/specs/`
+- Plans: `legacy/<YYYY-MM>/plans/`
+
+`<YYYY-MM>`은 artifact 이름의 `YYYY-MM-DD`에서 가져온다.
+날짜가 없으면 현재 로컬 월을 쓴다.
+
+## Procedure
+
+1. `git status --short`와 close report를 보고 이번 워크트리에서 생성/해결된 대상만 고른다.
+2. `artifacts/reports/*`는 이동하지 않는다.
+3. `mkdir -p legacy/<YYYY-MM>/{issues,specs,plans}`를 준비한다.
+4. issue/spec/plan을 대응 destination으로 이동한다. 대상이 디렉터리면 디렉터리 전체를 이동한다.
+~~~~~
+
+~~~~~file path=docs/tools/close-worktree/writing-report.md
+# Writing Close Worktree Report
+
+close-worktree의 report artifact 작성 절차다.
+
+## Output
+
+- 위치: `artifacts/reports/YYYY-MM-DD-<topic>-report.md`
+- 날짜: 현재 로컬 날짜
+- 길이: 100줄 이내
+- 문체: 짧고 사실 중심
+
+## Required Inputs
+
+| 입력 | 내용 |
+| --- | --- |
+| Summary | 무엇을 끝냈는지 |
+| Docs result | maintain-highway 결과 또는 docs 갱신 불필요 사유 |
+| Guide Impact | 사용자 가이드 영향 상태, 후보 가이드, 승인 필요 여부 |
+| Version status | update-version-status 자동 실행 없음, 별도 직접 실행 필요 여부 |
+| Verification | 실행한 명령, pass/fail/not run, 실패 수 |
+| Plan deviations | 계획과 달라진 점, 즉흥 변경, 못 한 것 |
+| Repeat prevention | 반복되면 안 되는 실수와 docs 반영 경로 |
+| Notes and cautions | 특이사항, 위험, 환경, 데이터, 마이그레이션 |
+| Manual test guide | 사용자가 직접 확인할 행동과 기대 결과 |
+
+## Template
+
+```markdown
+# Report: <topic>
+
+## Summary
+- <무엇을 끝냈는지 1~3줄>
+
+## Docs Updated
+- <maintain-highway로 갱신한 docs 경로>
+- <또는 "변경된 동작 없음: 갱신 불필요 - 이유">
+
+## Guide Impact
+- Status: <None | Review Required | Update Required | Updated>
+- Candidate Guides: <가이드명 또는 없음>
+- Reason: <가이드 수정 필요/불필요 판단 근거>
+- Suggested Direction: <승인 시 반영 방향 또는 생략>
+- Approval Gate: <승인 전 본문 수정 안 함 | 승인받아 수정 완료>
+
+## Version Status
+- <update-version-status 자동 실행 없음>
+- <별도 직접 실행 필요 여부와 이유>
+
+## Verification
+- `<command>`: <pass/fail/not run>
+- <실행하지 못했다면 이유와 영향>
+
+## Plan Deviations
+- <원래 plan과 다르게 한 점>
+- <즉흥적으로 변경한 점과 이유>
+- <못 한 것이 있다면 이유와 후속 조치>
+
+## Repeat Prevention
+- <반복되면 안 되는 실수/오류>
+- <docs에 반영한 회피 규칙과 경로>
+
+## Notes And Cautions
+- <특이사항>
+- <주의해야 할 위험, 환경, 데이터, 마이그레이션, 플래그>
+
+## Manual Test Guide
+1. <사용자가 직접 확인할 화면/API/흐름>
+2. <성공 기준>
+3. <주의해서 볼 회귀 지점>
+```
+
+## Quality Bar
+
+- report는 final response가 아니다. 반드시 파일로 생성한다.
+- “테스트함”에는 명령과 결과가 있어야 한다.
+- “not run”은 숨기지 말고 이유와 위험을 쓴다.
+- 수동 테스트 가이드는 “확인하세요”가 아니라 실제 단계로 쓴다.
+- Repeat Prevention은 maintain-highway가 갱신한 docs 경로와 연결한다.
+- Repeat Prevention의 규칙화는 [empirical-coding](../empirical-coding/SKILL.md) 4절을 따른다. 처음 본 실수는 기록만 하고, 이전 report에도 같은 실수가 있을 때만 SSOT·INDEX에 한 줄 추가한다.
+- Verification은 Task Brief의 종료 조건과 1:1로 대응해야 한다. 대응하지 않는 종료 조건은 "not run"으로 적는다.
+~~~~~
+
+~~~~~file path=docs/tools/distill-knowledge/SKILL.md
+---
+name: distill-knowledge
+description: 새 원본(분석 케이스·스키마·리포트·Change Record)에서 Knowledge Item Draft를 추출할 때 사용한다. "/distill-knowledge", "지식 추출", "역분석" 요청에 사용한다.
+---
+
+# Distill Knowledge
+
+## 목적
+원본에서 Knowledge Item(KI) Draft를 추출한다. KI 하나에 사실 하나. 방법론은 `docs/agentops/KNOWLEDGE_LIFECYCLE.md`, 초기 구축은 `docs/agentops/BOOTSTRAPPING.md`.
+
+## 시작 전 확인
+- 대상 원본이 `knowledge/raw/` 또는 `ops/`에 있는가. 없으면 먼저 Capture한다 (원본은 이후 수정하지 않는다).
+- 대상이 분석 케이스면 `evals/splits.json`에서 `holdout`이 아닌지 확인한다. **Hold-out 케이스에서는 추출하지 않는다.** Split이 정해지지 않았으면 사용자에게 묻는다.
+
+## 모드
+| 원본 | 모드 | 나오는 KI |
+| --- | --- | --- |
+| 분석 케이스 (문서 + raw data) | 역분석 | Decision Heuristic, Query Pattern, Data Caveat |
+| 리포트만 (data 없음) | 절차 추출 | Decision Heuristic (Draft 유지) |
+| 스키마·쿼리 이력 | 카탈로그 | Data Catalog, Query Pattern, Data Caveat |
+| 인터뷰·전문가 답변 | 정리 | Decision Heuristic, Exception Case, Glossary |
+| Change Record·Issue | 회고 | Lessons Learned, Failure Mode, Rejected Experiment |
+
+## 역분석 절차 (분석 케이스)
+1. 문서 전체와 캡처 이미지를 읽고, 결론과 그 근거로 제시된 수치·그림을 목록으로 만든다.
+2. 각 수치·그림이 데이터의 어느 부분에서 어떤 조건으로 나왔는지 데이터와 대조해 찾는다.
+3. 세 가지를 재구성한다: 요청의 목적 / 조회한 데이터와 조건 / 결론을 낸 판단 기준.
+4. 재구성한 조회 방법으로 실제로 조회해 문서의 수치가 나오는지 확인한다 (Replay). 결과를 기록한다.
+5. 유형별 `_TEMPLATE.md`를 복사해 KI를 만든다. `status: draft`, `source`에 케이스 경로.
+6. 문서로 설명되지 않는 판단은 추측해서 채우지 않는다. 전문가 질문 목록으로 남긴다.
+
+## 회고 절차 (Change Record·Issue)
+1. `adopted` → Lessons Learned, `rejected`·`rolled-back` → Rejected Experiment.
+2. 같은 원인의 Issue가 2건 이상이면 Failure Mode로 묶는다.
+3. 만든 KI ID를 Change Record의 `knowledge`에 적는다. 전후 점수가 있으므로 `evidence`에 CHG ID를 적고 Validated로 올릴 수 있다.
+
+## 가드레일
+- 기존 KI와 같은 내용이면 새로 만들지 않고 `source`만 보탠다. 상반되면 둘 다 두고 `review-knowledge` 대상으로 보고한다.
+- 에이전트는 Draft까지만 쓴다. 승격은 `docs/adaptation/AUTONOMY_LEVELS.md`의 현재 단계를 따른다.
+
+## 종료 조건과 보고
+- `node ci/check-harness.mjs` 통과.
+- 보고: 만든 KI 목록(ID·유형·한 줄 요약), Replay 결과(재현됨/안 됨), 전문가 질문 목록, 다음 단계(`case-from-ki`).
+~~~~~
+
+~~~~~file path=docs/tools/empirical-coding/SKILL.md
+---
+name: empirical-coding
+description: Use when starting, scoping, delegating or finishing any non-trivial code change (feature, refactor, migration, rewrite) — sets the task brief (목표·가드레일·종료조건·검증수단), verification-first loop, and the rule for when to add harness rules
+---
+
+# Empirical Coding
+
+Boris Cherny(Claude Code 창시자)의 작업 방식을 이 하네스에 맞춘 절차다. 출처: YC 대담 "We Cut 80% of Claude Code's Prompt"(2026-07).
+한 줄 요약: **조금 어려운 과제를 결과 기준으로 맡기고, 스스로 검증할 수단을 먼저 세우고, 반복해서 막힌 곳만 하네스에 반영한다.**
+
+## 1. Task Brief — 작업 시작 시 4요소
+
+코드를 고치기 전에 아래 4가지를 확정한다. `docs/SSOT.md` → 영역 `INDEX.md`로 코드에서 추론할 수 있는 것은 직접 확인하고, 추론할 수 없는 것만 사용자에게 묻는다.
+
+| 요소 | 내용 | 하네스 연결 |
+| --- | --- | --- |
+| 목표 | 무엇이 참이 되어야 하는가 (결과 중심 1~2문장) | pre-spec이 있으면 `Intent`·`Scope` |
+| 가드레일 | 건드리면 안 되는 것 | SSOT Core Principles(허락 필수 변경), `Non-Goals` |
+| 종료 조건 | "끝났다"를 판정하는 관찰 가능한 기준 | pre-spec `Acceptance Criteria` |
+| 검증 수단 | 종료 조건을 에이전트가 직접 확인하는 방법 | 영역 `INDEX.md`의 Commands, `.claude/launch.json` |
+
+- 큰 작업은 4요소를 `artifacts/plans/YYYY-MM-DD-<topic>-plan.md` 맨 위에 적는다. 작은 작업은 대화 안에서 한 줄씩이면 충분하다.
+- 1→2→3식 마이크로 단계로 과제를 좁히지 않는다. 사용자가 단계로 줬다면 그 안의 목표·제약을 뽑아내고, 제약은 지키면서 더 나은 경로를 택한다.
+- 과제 단위는 생각보다 한 단계 크게 잡는다: 한 줄 → 파일, 파일 → 기능.
+- 서브에이전트(`code-generator` 등)에 넘길 때도 4요소를 그대로 넘긴다.
+
+## 2. Verification First
+
+검증은 사람들이 가장 많이 놓치는 단 하나다.
+
+1. 수정 전에 검증 루프를 먼저 세운다. 없으면 그것이 첫 작업이다: 실패하는 테스트, 재현 스크립트, 기준 출력 캡처, dev server 실행.
+2. 이식·재작성은 기존 테스트 스위트나 기존 구현을 오라클로 쓴다 (예: 기존 앱 스크린샷과 새 앱을 픽셀 비교).
+3. UI 변경은 `launch.json`의 dev server로 실제로 띄워 확인한다. "아마 될 것"은 완료가 아니다.
+4. 검증이 통과할 때까지 멈추지 않는다. 막히면 원인을 좁히거나 검증 수단을 개선한다.
+5. 완료 보고에는 실행한 명령과 결과(pass/fail/not run)를 붙인다. close-worktree report의 `Verification`과 같은 형식이다.
+
+## 3. 과설계 금지
+
+- 미리 큰 추상화·스캐폴딩을 깔지 않는다. 가장 단순한 구현으로 먼저 돌려보고 관찰한다.
+- 거의 같은 추상화가 이미 있으면 새로 만들지 않고 재사용·통합한다.
+- SSOT의 "변경 없이 해결 가능한 방법 우선" 원칙과 같은 방향이다.
+
+## 4. 규칙 추가 기준 (Ablation 원칙)
+
+`docs/SSOT.md`, 영역 `INDEX.md`, 스킬, 훅, 에이전트 메모리에 새 규칙을 넣을 때:
+
+| 관찰 | 조치 |
+| --- | --- |
+| 한 번 실수 | 그 자리에서 고친다. 규칙화하지 않는다 |
+| 같은 실수 2회 이상 | 원인에 맞는 곳에 한 줄 추가 (아래) |
+| 판단이 틀림 | SSOT 또는 영역 INDEX에 규칙 한 줄 |
+| 정보가 없었음 | 규칙 대신 topic 문서·MCP·스크립트로 컨텍스트 공급 (`maintain-highway`) |
+| 긴 절차가 반복됨 | `docs/tools/<name>/` 스킬 (사람 소유, 사용자 요청 시에만 생성) |
+| 반드시 매번 강제 | CI 게이트 또는 훅 |
+
+- 모델은 지시를 매번 읽는다. 추측으로 넣은 규칙은 비용이고, 새 모델에선 방해(hobbling)가 될 수 있다.
+- 반복 여부 근거는 close-worktree report의 `Repeat Prevention`에 남긴다.
+- 모델 세대가 바뀌면 [prune-harness](../prune-harness/SKILL.md)로 걷어낸다.
+
+## 5. 경험적 태도
+
+- 이론이나 이전 모델에 대한 기억보다 지금 돌려본 결과를 믿는다.
+- 예전에 실패한 과제도 새 모델로 다시 시도한다 ([prune-harness/CHALLENGES.md](../prune-harness/CHALLENGES.md)).
+- 가설 → 실행 → 관찰 → 조정. 변경은 작게, 효과는 측정 가능하게.
+
+## 6. 레버리지
+
+- 큰 단일 작업(대규모 재작성, 다단계 기능, 심층 분석): 병렬 서브에이전트로 1차 작업 → 검증/요약 에이전트 → 다시 팬아웃. 하위 작업마다 1번의 4요소를 준다.
+- 반복 유지보수: 한 문장짜리 루틴으로 돌린다. 예시는 [routines.md](./routines.md).
+
+## 완료 전 점검
+
+- 4요소가 명확했는가, 종료 조건을 실제로 충족했는가
+- 검증 명령을 실행했고 결과를 보고에 붙였는가
+- 요청하지 않은 추상화·범위 확장을 하지 않았는가
+- 새 규칙을 추가했다면 반복 근거가 있는가
+~~~~~
+
+~~~~~file path=docs/tools/empirical-coding/routines.md
+# Maintenance Routines
+
+empirical-coding의 보조 문서다. 반복되는 유지보수를 한 문장 프롬프트 루틴으로 돌린다.
+등록: Claude Code `/loop`(로컬, 주기 실행) 또는 `/schedule`(클라우드 routine, 노트북을 닫아도 동작).
+
+## 예시 루틴
+
+| 루틴 | 프롬프트 | 주기 |
+| --- | --- | --- |
+| 죽은 코드 정리 | "정적·동적 분석으로 사용되지 않는 코드를 찾아 제거하는 PR을 올려라." | 매일 |
+| 실험 플래그 졸업 | "100% 롤아웃된 플래그를 찾아 분기를 제거하고 기본 동작으로 확정하는 PR을 올려라." | 매주 |
+| 테스트 보강 | "커버리지가 낮고 위험한 영역에 의미 있는 테스트를 추가하는 PR을 올려라." | 매주 |
+| 무의미한 테스트 제거 | "아무것도 검증하지 않거나 중복된 테스트를 찾아 제거하는 PR을 올려라." | 매주 |
+| Abstraction police | "거의 같은 추상화가 여러 곳에 재구현된 것을 찾아 하나로 통합하는 PR을 올려라." | 매주 |
+| 문서 지도 보수 | "maintain-highway 스킬을 실행합니다." (narrow 모드) | 매일 |
+
+## 원칙
+
+- 결과는 항상 PR로 올리고 사람이 리뷰한다. 루틴이 main에 직접 쓰지 않는다.
+- 루틴끼리 컨텍스트는 공유하지 않는다. 상태 공유가 필요하면 `RESEARCH.md` 같은 장부 파일로만 한다.
+- 처음에는 1~2개만 켜고 PR 품질을 보며 늘린다.
+- 루틴 결과가 같은 방식으로 반복해서 틀리면 그때 프롬프트에 한 줄 추가한다 (Ablation 원칙).
+- SSOT Core Principles의 허락 필수 변경(예: migration)은 루틴이 절대 만들지 않는다.
+~~~~~
+
+~~~~~file path=docs/tools/log-change/SKILL.md
+---
+name: log-change
+description: agent/(프롬프트·스킬·도구·검색 설정·모델)를 바꿀 때 Change Record를 만들고 전후 평가로 닫는다. "/log-change", "변경 기록", "에이전트 수정" 요청에 사용한다.
+---
+
+# Log Change
+
+## 목적
+`agent/` 변경 한 건을 "왜 바꿨고, 무엇을 바꿨고, 성능이 어떻게 달라졌나"로 남긴다. 경로는 `docs/agentops/CHANGE_LOOP.md`.
+
+## Task Brief
+- **목표**: 가설 하나를 검증하고 Change Record를 `adopted` 또는 `rejected`로 닫는다.
+- **가드레일**: 변경 하나에 가설 하나. Eval Case와 Baseline은 건드리지 않는다. `knowledge/raw/`는 건드리지 않는다.
+- **종료 조건**: Change Record에 전후 평가가 있고 REGISTRY에 한 줄이 있다.
+- **검증 수단**: `run-evals`, `node ci/eval-gate.mjs`, `node ci/check-harness.mjs`.
+
+## 절차
+1. **계기 확인.** Issue·KI·제안 ID가 있는가. 없으면 먼저 Issue를 등록한다 (`ops/issues/_TEMPLATE.md`).
+2. **Prior Knowledge.** `knowledge/dev/`에서 같은 태그의 Lessons Learned·Failure Mode·Rejected를 찾는다. 이미 기각된 시도면 무엇이 달라졌는지 설명할 수 있을 때만 진행한다.
+3. **Eval Case 확인.** 계기가 Issue면 재현 케이스가 있는가. 없으면 `case-from-ki`를 먼저 실행한다.
+4. **Change Record 생성.** `ops/changes/_TEMPLATE.md`를 다음 번호로 복사한다. `status: proposed`, `trigger`, `targets`, 가설, Prior Knowledge를 채운다.
+5. **변경 전 평가.** `run-evals`로 현재 상태를 측정해 `eval_before`에 결과 파일을 적는다.
+6. **변경 적용.** `targets`에 적은 경로만 바꾼다. 범위가 넓어지면 Change Record를 나눈다.
+7. **변경 후 평가.** `run-evals` 후 `eval_after`를 적고 평가 결과 표를 채운다. `node ci/eval-gate.mjs`를 실행한다.
+8. **결정.**
+   - 목표 케이스 통과 + Regression 없음 → `adopted`. Baseline이 올랐으면 `evals/baseline.json`을 갱신하고 `change`에 이 ID를 적는다.
+   - 아니면 → 변경을 되돌리고 `rejected`. 부작용과 이유를 적는다.
+   - 판단이 애매하면 (목표는 올랐지만 다른 Suite가 떨어짐 등) 사용자에게 결과 표를 보여 주고 묻는다.
+9. **기록.** `ops/changes/REGISTRY.md` 맨 위에 한 줄을 추가한다. Issue의 `status`·`change`를 갱신한다.
+10. **Distill.** `distill-knowledge` 회고 모드로 Lessons Learned 또는 Rejected Experiment를 만들고 `knowledge`에 ID를 적는다.
+
+## 급한 수정
+먼저 고쳐야 했다면 사후에 4~10을 수행한다. `eval_before`는 변경 전 커밋에서 측정한다.
+
+## 보고
+Change Record ID, 가설, Suite별 전 → 후 점수, Regression 여부, 결정, 추출한 KI.
+~~~~~
+
+~~~~~file path=docs/tools/maintain-highway/RESEARCH.md
+# Research Log
+
+`maintain-highway` 반복 조사를 줄이는 압축 장부다. 상세 과거 행은 git history에서 확인한다.
+
+## 사용법
+
+- `Recent Runs`에서 같은 변경점을 확인하고, 더 최신 diff면 다시 검증한다.
+- `Coverage Ledger`는 baseline 지도화 범위다. 조사하지 않은 영역을 확장 해석하지 않는다.
+- 새 실행은 날짜·모드·주제·확인 범위·반영 문서·Follow-up을 한 행에 남긴다.
+- `Recent Runs`가 20행 또는 이 파일이 100줄을 넘기기 전에 영역별 요약으로 접는다.
+
+## Open Follow-ups
+
+| 날짜 | 주제 | Follow-up |
+| --- | --- | --- |
+
+## Recent Runs
+
+| 날짜 | 모드 | 주제 | 확인 범위 | 반영 문서 | Follow-up |
+| --- | --- | --- | --- | --- | --- |
+
+## Coverage Ledger
+
+| 영역 | baseline 지도화 | 비고 |
+| --- | --- | --- |
+~~~~~
+
+~~~~~file path=docs/tools/maintain-highway/SKILL.md
+---
+name: maintain-highway
+description: Use when maintaining docs as the repository navigation map for agents after source, workflow, or knowledge-routing changes
+---
+
+# Maintain Highway
+
+## 목적
+
+`docs/`를 LLM 에이전트가 개발 작업을 시작하고, 좁히고, 검증하기 위한
+information highway로 유지한다.
+
+`docs/` 문서는 백과사전이 아니다. 문서는 `SSOT.md`에서 시작해 적은 컨텍스트로 올바른 코드, 스키마, 실행 경로, 자료형 문서에 도달하게 하는 지도다.
+
+매 실행은, 3가지 모드 중 하나로 실행된다.
+
+1. 좁은 탐색 (narrow search) - 디폴트. 별도 모드나 문맥을 언급하지 않고 단순히 스킬 호출. (ex - "maintain-highway 스킬을 실행합니다.")
+2. 넓은 탐색 (wide search) - 모드를 명시하여 스킬을 호출. (ex - "WIDE 모드로 maintain-highway 스킬을 실행합니다.")
+3. 선택된 타겟 (selected target) - 타겟 변경사항 문맥이 직접 언급되면서 스킬을 호출. (ex - "이번 워크트리 브랜치의 변경점에 대해 maintain-highway 스킬을 실행합니다.")
+
+## 실행 결과
+
+- `docs/` 내부의 구조 또는 파일이 업데이트 된다.
+
+## 핵심 원칙
+
+1. `docs/SSOT.md`는 최상위 라우터다.
+2. 모든 주요 문서는 상위 `INDEX.md` 또는 인접 문서의 Reference Map에서 발견 가능해야 한다.
+3. 문서는 코드를 대체하지 않고, 코드를 찾고 이해하기 위한 지도 역할을 한다.
+4. 오래된 문서는 없는 문서보다 위험하다. 현재 소스가 기준이다.
+5. 추측, 과거 의도, 이상적 구조는 현재 구현과 구분하지 못하면 쓰지 않는다.
+6. 짧은 라우터 문서와 목적별 topic 문서를 선호한다.
+7. 파일 경로, 엔트리포인트, 모듈 책임, 데이터 흐름, 제약을 우선 기록한다.
+8. 긴 코드 복사, 일회성 로그, 장문 구현 설명은 docs에 넣지 않는다.
+
+## 실행 절차
+
+1. 항상 먼저 읽는다. `docs/SSOT.md`
+2. '모드'를 파악한다.
+3. '모드'에 해당하는 문서의 절차를 진행한다.
+
+- [좁은 탐색 모드](./narrow-search.md)
+- [넓은 탐색 모드](./wide-search.md)
+- [선택된 타겟 모드](./selected-target.md)
+
+3. 종료 절차를 진행한다.
+
+4. '남긴 follow-up'이 존재한다면, 이 스킬을 해당 문맥으로 재호출한다.
+
+## 업데이트 전략
+
+조사 결과에 따라 하나 이상을 선택한다.
+
+- 기존 문서 갱신: 문서 위치는 맞고 내용만 낡았을 때 사용한다.
+- 신규 topic 문서 추가: 독립된 주제가 있고 아직 문서가 없을 때 사용한다. `<MAIN_AREA>/<TOPIC>.md`, `<MAIN_AREA>/<SUB_AREA>/<TOPIC>.md`,
+- 신규 sub-area 개설: 하나의 topic 문서가 커지거나 관련 문서들이 하위 도메인을 이룰 때 사용한다. `<MAIN_AREA>/<SUB_AREA>/INDEX.md`
+- 문서 구조 리팩토링: 문서가 발견되지 않거나 ownership이 흐려졌을 때 사용한다.
+- 업데이트 허용 범위와 기록 항목은 선택한 모드 문서를 따른다.
+
+## 문서 형태 규칙
+
+- 기준형 문서: `SSOT.md`, `INDEX.md`는 60줄 이내 유지.
+- 자료형 topic 문서는 100줄 이내 유지.
+- 문서 계층은 `SSOT.md` → main `INDEX.md` → sub `INDEX.md` 또는 topic 문서 흐름을 따른다.
+- 문서 계층 깊이는 최대 3단계다.
+- `docs/tools` workflow 문서는 사용자가 명시적으로 요청한 경우에만 수정한다.
+
+## 종료 절차
+
+작업 종료 전 `docs/tools/maintain-highway/RESEARCH.md`를 갱신한다.
+
+기록은 간결해야 한다.
+
+- 날짜
+- 모드
+- 주제
+- 실제 확인한 범위
+- 업데이트한 문서
+- 남긴 Follow-up
+
+조사하지 않은 영역을 조사한 것처럼 쓰지 않는다.
+동일 영역 반복 조사를 막을 수 있어야 한다.
+
+끝내기 전에 확인한다.
+
+- `SSOT.md`에서 갱신한 문서까지 Reference Map으로 도달 가능한가?
+- 기준형 문서와 자료형 문서의 라인 기준을 지키는가?
+- 새 문서나 이동 문서의 링크가 깨지지 않았는가?
+- 문서의 주요 주장이 실제 파일 확인으로 뒷받침되는가?
+- `RESEARCH.md`가 모드, 범위, 변경 문서를 말하는가?
+
+최종 기준은 인간 독자가 아니라 에이전트 가독성이다.
+적은 컨텍스트로 정확한 파일을 찾고, 현재 구조를 이해하고,
+안전하게 다음 작업을 수행할 수 있으면 좋은 문서다.
+
+# 오토 팔로우업
+~~~~~
+
+~~~~~file path=docs/tools/maintain-highway/narrow-search.md
+# Narrow Search Mode
+
+상위 `maintain-highway` 스킬이 기본 모드로 호출하는 하위 스킬이다. 목표는 최근 코드 변화와 조사 로그를 보고, 문서 갱신 가치가 있는 좁은 범위 하나를 골라 실제 소스 기준으로 갱신하는 것이다. 이 모드는 특정 범위가 주어지지 않은 경우를 위한 LLM 자기 주도형 스킬이다.
+
+## 1. 최근 신호 확인
+
+먼저 최근 변경과 조사 이력을 본다.
+
+- 최근 신규 커밋: `git log --oneline -n 20`
+- 최근 변경 파일: 필요한 경우 `git show --stat <commit>`
+- 조사 로그: `docs/tools/maintain-highway/RESEARCH.md`
+- 지도 시작점: `docs/SSOT.md`와 관련 main `INDEX.md`
+
+`RESEARCH.md`에서 같은 범위를 최근 충분히 조사했다면 후보에서 제외한다.
+단, 최근 커밋이 같은 범위를 다시 바꿨다면 재검증할 수 있다.
+
+## 2. 후보 범위 만들기
+
+최근 커밋과 기존 문서의 간극에서 5개 안팎의 후보를 만든다.
+후보는 다양한 형태가 될 수 있다.
+
+- 기술적 개념: auth guard, realtime payload, cache invalidation
+- 소스 폴더: `apps/<app>/src/...`
+- 소스 파일: controller, service, hook, modal, schema, DTO
+- 구조적 개념: 라우팅, 권한 경계, 데이터 흐름, 테스트 런타임
+- 아키텍처상 개념: app boundary, integration failure mode, tenant/조직 scope
+- 문서 claim: 현재 문서가 오래됐거나 너무 넓게 말하는 문장
+
+후보는 “확인하면 문서가 더 정확해질 가능성”이 있어야 하며, 이미 명확하고 최근 조사된 영역은 피한다.
+
+## 3. 랜덤 범위 선정
+
+후보에 번호를 붙이고 하나를 랜덤하게 고른다.
+임의 선택이 어렵다면 최근 조사 빈도가 낮고 커밋 영향이 있는 후보를 고른다.
+
+선정한 범위는 `이번 범위: <topic> - <왜 문서 갱신 가능성이 있는지>` 형식의 한 문장으로 고정한다.
+범위가 넓으면 파일, route, hook, service, schema 중 하나로 더 좁힌다.
+
+## 4. 좁게 조사
+
+선정 범위만 깊게 본다.
+
+1. entrypoint, route, page, controller
+2. service, hook, store, scheduler
+3. schema, type, DTO, API wrapper
+4. auth, permission, tenant boundary
+5. external integration, env, runtime constraint
+6. tests, scripts, verification path
+
+조사하지 않은 영역을 추정하지 않는다. 문서가 코드와 다르면 코드 기준으로 갱신한다.
+
+## 5. 문서 갱신
+
+- 기존 topic 문서가 맞으면 그 문서만 갱신한다.
+- 새 topic이 필요하면 100줄 이내로 만들고 상위 `INDEX.md`에 연결한다.
+- 라우터 링크가 빠졌으면 필요한 `INDEX.md`의 Reference Map만 갱신한다.
+- 큰 구조 문제가 보이면, 해당 범위를 언급하여 'selected-target' follow-up으로 남긴다.
+
+## 6. 종료 자료
+
+상위 스킬의 종료 절차에 넘길 내용을 남긴다.
+
+- 선택한 랜덤 후보와 제외한 최근 조사 범위
+- 실제 확인한 파일/문서
+- 갱신한 문서
+- 남은 follow-up과 verification path
+~~~~~
+
+~~~~~file path=docs/tools/maintain-highway/selected-target.md
+# Selected Target Mode
+
+상위 `maintain-highway` 스킬이 명시된 토픽, 파일, 커밋, 브랜치 변경점, 기능 범위를 전달받았을 때 호출하는 하위 스킬이다. 목표는 초반 후보 탐색 없이 전달받은 타겟을 바로 현재 소스 기준으로 검증하고 문서를 갱신하는 것이다.
+
+## 1. 타겟 고정
+
+전달받은 토픽을 먼저 한 문장으로 고정한다.
+
+- 기능/도메인: 예) 조직 권한 preset 적용 흐름
+- 소스 범위: 예) `apps/backend/src/...`, 특정 controller/service/hook
+- 변경 범위: 예) 현재 브랜치 diff, 특정 commit, PR 변경점
+- 문서 범위: 예) 특정 topic 문서의 stale claim
+
+`이번 타겟: <topic> - <전달받은 이유나 문맥>` 형식으로 기록한다.
+랜덤 후보 생성이나 대체 토픽 탐색은 하지 않는다.
+
+## 2. 필수 컨텍스트 확인
+
+타겟을 바꾸지 않고 필요한 지도와 이력만 확인한다.
+
+- 지도 시작점: `docs/SSOT.md`
+- 관련 main/sub `INDEX.md`
+- 조사 로그: `docs/tools/maintain-highway/RESEARCH.md`
+- 변경점이 타겟이면 `git diff`, `git show`, `git log --oneline -n 20`
+
+`RESEARCH.md`에 같은 범위가 최근 있어도, 전달받은 변경점이 더 최신이면 그대로 재검증한다.
+최근 조사와 차이가 없으면 문서 갱신 없이 follow-up 판단만 남길 수 있다.
+
+## 3. 범위 좁히기
+
+전달받은 타겟이 넓으면 같은 문맥 안에서만 좁힌다.
+
+- 파일보다 넓으면 route, page, controller, service, hook 중 핵심 entrypoint를 고른다.
+- 기능보다 넓으면 데이터 흐름, 권한 경계, UI 흐름, 테스트 경계 중 하나로 고른다.
+- 브랜치/커밋이면 변경 파일 중 문서 claim을 바꿀 가능성이 큰 범위를 고른다.
+
+타겟 밖의 흥미로운 영역은 조사하지 않고 'selected target' follow-up으로 남긴다.
+
+## 4. 좁게 조사
+
+선정 범위만 깊게 본다.
+
+1. entrypoint, route, page, controller
+2. service, hook, store, scheduler
+3. schema, type, DTO, API wrapper
+4. auth, permission, tenant boundary
+5. external integration, env, runtime constraint
+6. tests, scripts, verification path
+7. 사용자 화면/업무 흐름이 바뀌면 사용자 가이드/매뉴얼 문서 갱신 필요 여부
+
+조사하지 않은 영역을 추정하지 않는다. 문서가 코드와 다르면 코드 기준으로 갱신한다.
+
+## 5. 문서 갱신
+
+- 기존 topic 문서가 맞으면 그 문서만 갱신한다.
+- 새 topic이 필요하면 100줄 이내로 만들고 상위 `INDEX.md`에 연결한다.
+- 라우터 링크가 빠졌으면 필요한 `INDEX.md`의 Reference Map만 갱신한다.
+- 타겟이 너무 커서 한 번에 안전하게 못 끝내면 다음 'selected-target' follow-up으로 쪼갠다.
+
+## 6. 종료 자료
+
+상위 스킬의 종료 절차에 넘길 내용을 남긴다.
+
+- 고정한 타겟과 좁힌 최종 범위
+- 실제 확인한 파일/문서
+- 갱신한 문서
+- 타겟 밖이라 남긴 follow-up과 verification path
+- 사용자 화면/업무 흐름 변경이 있었다면 Guide Impact 판단
+~~~~~
+
+~~~~~file path=docs/tools/maintain-highway/wide-search.md
+# Wide Search Mode
+
+상위 `maintain-highway` 스킬이 wide 모드로 호출할 때 사용하는 하위 스킬이다. 목표는 `SSOT.md`에서 목적 문서나 코드 영역까지 가는 경로를 넓고 얕게 확인해 라우팅 문제를 고치는 것이다. 이 모드는 특정 범위가 주어지지 않은 경우를 위한 LLM 자기 주도형 스킬이다.
+
+## 1. 지도 신호 확인
+
+먼저 문서 지도와 조사 이력을 본다.
+
+- 루트 지도: `docs/SSOT.md`
+- workflow 지도: `docs/tools/INDEX.md`
+- 조사 로그: `docs/tools/maintain-highway/RESEARCH.md`
+- 필요하면 main `INDEX.md`, `find docs -maxdepth 3 -type f`, 최근 커밋
+
+`RESEARCH.md`에서 같은 라우터 문제를 최근 충분히 다뤘다면 후보에서 제외한다.
+단, 최근 커밋이나 신규 문서가 지도 연결을 바꿨다면 재검증할 수 있다.
+
+## 2. 후보 map edge 만들기
+
+문서 구조의 간극에서 5개 안팎의 후보를 만든다.
+후보는 넓고 얕은 라우팅 문제여야 한다.
+
+- Source Map 누락: 실제 `apps/*`, `docs/*` 구조와 `SSOT.md`가 다름
+- Reference Map 누락: 새 문서나 폴더가 상위 `INDEX.md`에서 발견되지 않음
+- ownership 불명확: topic 문서가 어느 main/sub 영역 소유인지 애매함
+- router 과밀: `SSOT.md` 또는 `INDEX.md`가 구현 세부를 담아 길어짐
+- 링크 품질: 깨진 링크, 중복 링크, 오래된 경로, 잘못된 탐색 순서
+- 문서 계층 문제: topic이 커져 sub-area와 `INDEX.md`가 필요함
+
+후보는 “수정하면 다음 에이전트가 더 적은 컨텍스트로 목적지에 도달할 가능성”이 있어야 한다.
+
+## 3. map edge 선정
+
+후보에 번호를 붙이고 하나의 map edge 또는 아주 작은 묶음을 고른다.
+임의 선택이 어렵다면 루트에서 가까운 경로, 최근 변경 영향, 발견 가능성 문제를 우선한다.
+
+선정한 범위는 `이번 map edge: <edge> - <왜 라우팅 개선이 필요한지>` 형식의 한 문장으로 고정한다.
+깊은 도메인 확인이 필요해지면 이번 범위에서 제외하고 `selected-target` follow-up으로 남긴다.
+
+## 4. 얕게 조사
+
+선정한 지도 범위만 확인한다.
+
+1. `docs/SSOT.md` Source Map과 Reference Map
+2. 관련 main/sub `INDEX.md`
+3. 실제 `docs/*` 파일과 폴더 위치
+4. 필요한 경우 실제 `apps/*` entrypoint 존재 여부
+5. 기존 topic 문서의 소유 영역과 링크 경로
+6. 라인 기준: 기준형 60줄, topic 100줄
+
+코드 동작을 깊게 추론하지 않는다. 필요한 구현 검증은 follow-up으로 넘긴다.
+
+## 5. 문서 갱신
+
+- `SSOT.md`, main/sub `INDEX.md`의 Source Map 또는 Reference Map을 갱신한다.
+- 깨진 링크, 누락 링크, 중복 링크, 오래된 경로를 정리한다.
+- router 문서의 과한 구현 설명은 제거하거나 topic 문서로 이동 후보를 남긴다.
+- 새 sub-area가 필요하면 폴더와 `INDEX.md`를 만들고 부모 Reference Map에 연결한다.
+
+## 6. 종료 자료
+
+상위 스킬의 종료 절차에 넘길 내용을 남긴다.
+
+- 선택한 map edge와 제외한 최근 조사 범위
+- 실제 확인한 문서/폴더
+- 갱신한 router 문서
+- 남은 `selected-target` follow-up과 verification path
+~~~~~
+
+~~~~~file path=docs/tools/open-worktree/SKILL.md
+---
+name: open-worktree
+description: 격리된 git worktree를 Claude 또는 Codex 로컬 개발용으로 준비할 때 사용한다.
+---
+
+# 워크트리 초기화
+
+새로 만든 워크트리를 로컬 개발이 가능한 상태로 맞춘다.
+환경 파일 복사, 의존성 설치, 로컬 DB 초기화(있다면) 선택 분기를 순서대로 처리한다.
+
+## STEP 0 - 절대 실행 조건
+
+이 스킬은 반드시 격리된 작업트리 안에서만 실행한다.
+루트 소스 트리, 특히 `main` 브랜치가 체크아웃된 원본 트리에서는 절대 실행하지 않는다.
+
+1. `git rev-parse --show-toplevel`로 현재 위치가 대상 워크트리인지 확인한다.
+2. `git worktree list --porcelain`으로 원본 루트가 아닌지 확인한다.
+3. 현재 루트가 `.codex/worktrees/` 또는 `.claude/worktrees/` 아래가 아니거나 `refs/heads/main` 워크트리라면 즉시 중단한다.
+4. 중단 시에는 파일 변경, env 복사, 설치를 하지 말고 "격리된 작업트리로 이동한 뒤 다시 실행해야 한다"고만 안내하고 종료한다.
+
+원본 `main` 워크트리는 env 파일을 읽는 용도로만 사용한다.
+
+## STEP 1 - 실행 순서
+
+1. 사용자에게 구축할 개발 환경을 묻는다. (예: A. 로컬 DB / B. 스테이지 DB / C. 프로덕션 DB) 선택지 문안은 프로젝트에 맞게 고정 텍스트로 둔다.
+2. 선택에 따른 대상 env 파일을 원본 워크트리에서 각 앱 경로로 복사한다. 복사 전 대상 존재 여부를 확인하고 덮어쓸지 묻는다.
+3. `pnpm install --frozen-lockfile`을 워크트리 루트에서 실행한다.
+4. 생성물이 필요한 앱(예: ORM client)은 generate를 실행한다.
+5. 로컬 DB 옵션이면 로컬 DB 초기화 절차(별도 문서)를 따른다.
+
+## 종료
+
+복사한 env, 설치 결과, 다음에 실행할 dev 명령을 한 번에 보고한다.
+~~~~~
+
+~~~~~file path=docs/tools/promote-evolution/SKILL.md
+---
+name: promote-evolution
+description: 에이전트의 자가 개선 제안(evolution/proposals/)을 검토해 Change Loop에 태울 때 사용한다. "/promote-evolution", "자가 개선 제안 검토" 요청에 사용한다.
+---
+
+# Promote Evolution
+
+## 목적
+에이전트가 실행 중 배운 것(`evolution/proposals/P-####.md`)을 사람의 변경과 같은 Eval Gate에 태워 반영하거나 기각한다. 자동화 수준은 `docs/adaptation/AUTONOMY_LEVELS.md`.
+
+## 시작 전 확인
+- 현재 Autonomy Level을 읽는다. L0이면 이 스킬을 쓰지 않는다 (제안을 받지 않는 단계).
+- `evals/baseline.json`이 측정돼 있는가. 없으면 중단하고 `run-evals`의 첫 Baseline 측정을 안내한다.
+
+## 절차
+1. **모으기.** `status: submitted`인 제안을 읽는다. 같은 내용의 제안은 하나로 묶고 관찰 횟수를 합친다.
+2. **걸러내기.** 아래는 기각(`rejected`)하고 이유를 적는다.
+   - 기존 Validated KI와 같은 내용
+   - `knowledge/dev/rejected/`에 같은 시도가 있고 새 근거가 없음
+   - 관찰이 한 번뿐이고 재현되지 않음
+   - Eval Case·Baseline·`knowledge/raw/`를 바꾸자는 제안
+3. **분류.** `kind: knowledge`면 KI Draft로, `kind: agent`면 `agent/` 변경안으로 다룬다.
+4. **Eval Case.** 제안이 해결한다는 상황의 Eval Case가 있는가. 없으면 `case-from-ki`로 만든다. 정답을 확정할 수 없으면 전문가 질문으로 남기고 보류한다.
+5. **Change Loop.** `log-change` 절차로 Change Record를 만든다 (`author: agent`, `trigger`에 제안 ID). KI 제안은 Draft KI를 실험 실행에 넣은 상태를 "변경 후"로 평가한다.
+6. **승격.**
+   - 통과 → 현재 Level이 허용하면 KI를 `validated`로 올려 `knowledge/learned/`에 두고 INDEX에 등록한다. Level이 허용하지 않으면 결과 표와 함께 사용자 승인을 요청한다.
+   - 실패 → 제안 `rejected`, Rejected Experiment로 남긴다.
+7. **기록.** 제안의 `status`와 `change`를 갱신한다.
+
+## 가드레일
+- Decision Heuristic, `agent/prompts/`, `agent/tools/`, 검색 설정은 Level과 관계없이 사람 승인을 받는다 (프로젝트가 저위험 목록을 바꿨다면 그 목록을 따른다).
+- 제안 여러 건을 한 Change Record로 묶지 않는다.
+
+## 보고
+제안별 결과(채택·기각·보류와 이유), 만든 Change Record, 승인이 필요한 항목.
+~~~~~
+
+~~~~~file path=docs/tools/prune-harness/CHALLENGES.md
+# Model Challenges
+
+이전 모델이 해내지 못한 과제 장부다. 새 모델이 나오면 `prune-harness` 6단계에서 다시 던진다.
+eval은 하네스보다 오래 살지만 1~3 모델 세대면 포화된다. 해결된 과제는 `Solved`로 옮기고, 20행을 넘기기 전에 접는다.
+
+## Open
+
+| 기록일 | 과제 (한 문장) | 검증 수단 | 마지막 시도 모델 | 막힌 지점 |
+| --- | --- | --- | --- | --- |
+
+## Solved
+
+| 해결일 | 과제 | 해결 모델 |
+| --- | --- | --- |
+~~~~~
+
+~~~~~file path=docs/tools/prune-harness/SKILL.md
+---
+name: prune-harness
+description: Use only when the user explicitly asks to prune/audit the harness — after a new model release, every ~6 months, or when agent behavior feels over-constrained ("하네스 정리", "ablation", "prune-harness")
+---
+
+# Prune Harness
+
+새 모델은 이전 모델의 약점을 보정하던 지시가 필요 없거나 오히려 방해(hobbling)가 될 수 있다.
+Boris Cherny: "6개월마다 CLAUDE.md·스킬·훅을 지워보고 모델이 뭘 하는지 보라."
+이 스킬은 하네스의 **규칙 층**을 걷어내고, 반복 실패가 관찰된 것만 되살린다. **지도 층**(Source Map, INDEX, topic 문서)은 대상이 아니다. 지도는 `maintain-highway`가 맡는다.
+
+## 대상
+
+| 대상 | 예 | 기본 처리 |
+| --- | --- | --- |
+| SSOT Core Principles 중 행동 교정 문장 | "~를 먼저 선언한다", "~하지 마라" 류 | 후보 |
+| 영역 INDEX의 행동 규칙 줄 | "우선 의심" 항목, 금지 패턴 | 후보 |
+| `docs/tools/**` 스킬의 교정성 문장 | 모델이 이미 알아서 하는 일반론 | 후보 |
+| `.claude/agents/*`의 프롬프트 | Quality Bar 일반론 | 후보 |
+| 훅, 전역 `~/.claude/CLAUDE.md` | 포맷·습관 강제 | 후보 |
+| 허락 필수 변경, 테스트 동시성, CI 게이트 | 안전·비가역 | **유지** (삭제 대상 아님) |
+
+## 절차
+
+1. **목록화**: 위 대상에서 "행동을 교정하는 문장"만 뽑아 `artifacts/reports/YYYY-MM-DD-prune-harness-report.md`에 표로 적는다 (위치, 문장, 넣은 이유를 알면 이유).
+2. **사용자 확인**: 비활성화할 후보를 보여주고 승인받는다. `docs/tools/**`는 사람 소유이므로 승인 없이 고치지 않는다.
+3. **비활성화**: 승인된 문장을 지운다. git에 남으므로 별도 백업은 불필요하다. git이 없으면 `*.bak`을 남긴다.
+4. **사용하며 관찰**: 평소 작업을 그대로 진행한다. 막힌 지점을 report의 `Observations`에 날짜·작업·증상으로 쌓는다.
+5. **반복 실패만 복원**: 같은 증상이 2회 이상이면 empirical-coding 4절 표에 따라 알맞은 곳에 한 줄 되살린다. 복원한 줄은 report에 근거와 함께 남긴다.
+6. **Challenges 재시도**: [CHALLENGES.md](./CHALLENGES.md)의 과제를 새 모델로 다시 던진다. 성공하면 표에서 지우거나 `Solved`로 옮긴다.
+
+## 하지 않는 것
+
+- 안전·비가역 규칙(허락 필수 변경, CI 동결 목록, migration lint)은 걷어내지 않는다.
+- 관찰 없이 "필요할 것 같다"는 이유로 복원하지 않는다.
+- 지도 문서의 사실(경로, 명령, env)을 지우지 않는다.
+
+## Report 섹션
+
+```markdown
+# Report: prune-harness (<모델명>)
+## Removed        | 위치 | 문장 | 이유 |
+## Kept (safety)  | 위치 | 문장 |
+## Observations   | 날짜 | 작업 | 증상 | 횟수 |
+## Restored       | 위치 | 문장 | 근거(Observations 행) |
+## Challenges     | 과제 | 결과 |
+```
+~~~~~
+
+~~~~~file path=docs/tools/review-knowledge/SKILL.md
+---
+name: review-knowledge
+description: Knowledge Base의 Re-validation, 충돌 해소, Deprecated 처리에 사용한다. 스키마 변경·모델 교체 후나 정기 점검에 실행한다. "/review-knowledge", "지식 점검" 요청에 사용한다.
+---
+
+# Review Knowledge
+
+## 목적
+Knowledge Base가 낡거나 서로 어긋나지 않게 유지한다. 방법론은 `docs/agentops/KNOWLEDGE_LIFECYCLE.md`의 Maintain 단계.
+
+## 범위 정하기
+| 계기 | 대상 |
+| --- | --- |
+| 스키마·데이터 구조 변경 | 변경된 테이블·컬렉션을 가리키는 `knowledge/data/` KI |
+| 기반 모델·검색 인덱스 교체 | 전체 Validated KI (우선순위: 이전 모델의 약점을 보정하던 것) |
+| Eval Case 실패 | 그 케이스를 `evidence`로 가진 KI |
+| 정기 점검 | `last_verified`가 오래된 순 |
+| 충돌 보고 | 같은 `tags`·상황에 상반된 내용의 KI |
+
+범위가 넓으면 대상 목록을 먼저 사용자에게 보여 주고 진행한다.
+
+## 절차
+1. **무결성.** `node ci/check-harness.mjs`를 실행해 형식 오류부터 고친다.
+2. **Re-validation.** 대상 KI마다 `evidence`를 다시 확인한다.
+   - Eval Case 근거 → 해당 케이스를 실행한다.
+   - Replay 근거 → 같은 조회를 다시 해 수치가 나오는지 본다.
+   - 통과하면 `last_verified`만 갱신한다.
+3. **실패한 KI.** 내용을 고쳐 쓰지 않는다. 기존 KI를 `deprecated`로 바꾸고 `superseded_by`에 대체 KI ID 또는 사유를 적는다. 대체 내용이 있으면 새 KI를 Draft로 만든다.
+4. **충돌 해소.** 상반된 KI는 둘 다 다루는 Eval Case로 평가한다 (없으면 `case-from-ki`). 진 쪽을 `deprecated` 처리한다. 조건에 따라 둘 다 맞으면 각 KI의 Situation을 좁히고 Exception Case를 만든다.
+5. **INDEX 갱신.** 영역 `INDEX.md`의 Validated·Deprecated 표를 KI 상태와 맞춘다. 60줄을 넘으면 하위 영역 분할을 제안한다.
+6. **쓰이지 않는 KI.** 어떤 Eval Case·Change Record에도 연결되지 않고 오래된 Draft는 목록으로 보고한다. 삭제는 사용자가 정한다.
+
+## 가드레일
+- `knowledge/raw/`는 수정하지 않는다.
+- Deprecated KI를 삭제하지 않는다.
+- Validated KI의 내용 변경이 에이전트 동작을 바꾸면 Change Record 대상이다 (`log-change`).
+
+## 보고
+검증한 KI 수, 갱신·Deprecated·신규 Draft 목록, 해소한 충돌, 사용자 결정이 필요한 항목.
+~~~~~
+
+~~~~~file path=docs/tools/run-evals/SKILL.md
+---
+name: run-evals
+description: Eval Suite를 실행하고 Baseline과 비교할 때 사용한다. agent/ 변경 전후, Baseline 측정, 정기 점검에 실행한다. "/run-evals", "평가 실행" 요청에 사용한다.
+---
+
+# Run Evals
+
+## 목적
+고정된 Eval Suite를 실행해 결과 파일을 남기고 Baseline과 비교한다. 형식과 러너 계약은 `evals/INDEX.md`.
+
+## 입력
+- 세트: `smoke`(빠른 확인) 또는 `full`(전체). 지정이 없으면 변경 중에는 smoke, 채택 직전에는 full.
+- 연결할 Change Record ID (있으면).
+
+## 절차
+1. **러너 확인.** 프로젝트의 평가 러너 명령을 `evals/INDEX.md`에서 찾는다. 러너가 아직 없으면 중단하고, 러너 계약(출력 형식)을 사용자에게 보여 준 뒤 구현 여부를 묻는다.
+2. **상태 고정.** 작업 트리에 평가와 무관한 변경이 섞여 있지 않은지 확인한다. 측정 대상 커밋·변경을 결과에 남긴다.
+3. **실행.** 러너를 실행한다. 결과는 `evals/results/<run-id>.json`과 `evals/results/latest.json`에 쓰인다.
+4. **비교.** `node ci/eval-gate.mjs`를 실행한다.
+5. **실패 케이스 확인.** Baseline보다 떨어진 Suite가 있으면 `failed` 케이스를 열어 원인이 이번 변경인지, 측정 잡음인지 본다. 잡음이 의심되면 같은 조건으로 한 번 더 실행해 비교한다.
+
+## 가드레일
+- 점수를 올리려고 Eval Case, 채점 기준, `tolerance`를 고치지 않는다.
+- `evals/baseline.json`은 채택된 Change Record의 결과로만 갱신한다 (`log-change` 8단계).
+- 평가 실행이 운영 데이터에 쓰기를 하지 않는지 확인한다. 쓰기 작업을 하는 에이전트는 격리 환경에서만 평가한다.
+- Blind 평가에서는 에이전트에게 Hold-out 케이스의 분석 문서를 주지 않는다.
+
+## 첫 Baseline 측정
+1. Hold-out 케이스로 만든 Eval Case가 Suite마다 있는지 확인한다.
+2. full 세트를 실행한다.
+3. 결과의 `suites`를 `evals/baseline.json`에 옮기고 `measured_at`을 적는다. 표본이 적으면 `notes`에 적는다.
+4. 이 측정을 Change Record로 남긴다 (`trigger`: Baseline 최초 측정).
+
+## 보고
+Suite별 점수와 건수, Baseline 대비 변화, 실패 케이스 ID, 결과 파일 경로.
+~~~~~
+
+~~~~~file path=evals/INDEX.md
+# evals/ — Eval Suite
+
+> 고정된 평가 세트. 변경 전후를 같은 케이스로 비교하기 위해 존재한다. 방법론은 `docs/agentops/CHANGE_LOOP.md`.
+
+## Suite
+| Suite | 무엇을 보나 | ID |
+| --- | --- | --- |
+| `retrieval/` | 요청의 목적에 맞는 데이터를 가져왔는가 | `R-####` |
+| `analysis/` | 가져온 데이터로 내린 판단이 맞는가 | `A-####` |
+| `regression/` | 전에 되던 것이 계속 되는가 (과거 이슈에서 온 케이스) | `G-####` |
+
+## Eval Case 형식
+케이스 하나 = JSON 파일 하나. `_TEMPLATE.json`을 복사해 만든다.
+- `id`, `suite`
+- `source`: 이 케이스의 출처 (`case`, `issue`, `ki`)
+- `input`: 에이전트에게 주는 것 (요청, 데이터 위치)
+- `expected`: 기대 결과 (조회 결과·정답 문서 ID·결론)와 채점 기준
+- `grading`: `exact`(일치 비교) 또는 `rubric`(채점 기준표)
+
+## Split
+- `splits.json`의 `holdout` 케이스로만 Blind 평가용 Eval Case를 만든다.
+- `distill` 케이스로 만든 Eval Case는 재현 확인용이다. Baseline 점수에 넣지 않는다.
+
+## 러너 계약 (프로젝트가 구현한다)
+러너는 스택에 맞게 프로젝트가 만든다. 지켜야 할 것은 출력 형식뿐이다.
+- 실행마다 `results/<run-id>.json`을 쓰고 `results/latest.json`을 갱신한다.
+- 형식: `{"run_id", "change", "measured_at", "suites": {"<suite>": {"score": 0~1, "n": 건수, "failed": ["<ID>"]}}}`
+- `baseline.json`도 같은 `suites` 형식이다.
+
+## Baseline
+- `baseline.json`은 채택된 변경의 평가 결과로만 갱신한다. 갱신한 Change Record ID를 `change`에 적는다.
+- `tolerance`는 측정 잡음을 허용하는 폭이다. 근거 없이 넓히지 않는다.
+- 게이트: `node ci/eval-gate.mjs [결과 파일]` — Baseline보다 낮은 Suite가 있으면 실패한다.
+
+## 규칙
+- 점수를 맞추려고 Eval Case를 고치지 않는다. 케이스나 채점 기준의 수정은 Change Record 대상이다.
+- 에이전트는 Eval Case와 Baseline을 수정하지 않는다.
+~~~~~
+
+~~~~~file path=evals/analysis/_TEMPLATE.json
+{
+  "id": "A-0000",
+  "suite": "analysis",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}
+~~~~~
+
+~~~~~file path=evals/baseline.json
+{
+  "_comment": "채택된 변경의 평가 결과로만 갱신한다. suites가 비어 있으면 게이트는 측정 전으로 보고 통과시킨다.",
+  "measured_at": null,
+  "change": null,
+  "tolerance": 0,
+  "notes": "",
+  "suites": {}
+}
+~~~~~
+
+~~~~~file path=evals/regression/_TEMPLATE.json
+{
+  "id": "G-0000",
+  "suite": "regression",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}
+~~~~~
+
+~~~~~file path=evals/results/.gitkeep
+~~~~~
+
+~~~~~file path=evals/retrieval/_TEMPLATE.json
+{
+  "id": "R-0000",
+  "suite": "retrieval",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}
+~~~~~
+
+~~~~~file path=evals/splits.json
+{
+  "_comment": "분석 케이스의 용도 구분. holdout 케이스는 KI의 source가 될 수 없다. 나눈 뒤에는 옮기지 않는다.",
+  "distill": [],
+  "holdout": []
+}
+~~~~~
+
+~~~~~file path=evolution/proposals/_TEMPLATE.md
+---
+id: P-0000
+status: draft             # draft | submitted | adopted | rejected
+date: null                # YYYY-MM-DD
+origin: null              # 트레이스 위치 또는 실행 ID
+kind: knowledge           # knowledge | agent
+change: null              # 이 제안을 다룬 CHG ID
+---
+## 무엇을 배웠나
+<실행 중 관찰한 사실.>
+
+## 제안
+<추가·수정할 KI 초안 또는 agent/ 변경안.>
+
+## 근거
+<관찰한 실행 횟수, 실험 실행 결과.>
+
+## 확인되지 않은 것
+<적용 범위, 위험.>
+~~~~~
+
+~~~~~file path=knowledge/INDEX.md
+# knowledge/ — Knowledge Base
+
+> 지식 한 가지 = Knowledge Item(KI) 파일 하나. 방법론은 `docs/agentops/KNOWLEDGE_LIFECYCLE.md`.
+
+## 영역
+| 영역 | 담는 것 | 시작 문서 |
+| --- | --- | --- |
+| `raw/` | 원본. 수정하지 않는다 | `raw/cases/_CASE_TEMPLATE/meta.md` |
+| `domain/` | 사람의 판단 | [domain/INDEX.md](./domain/INDEX.md) |
+| `data/` | 데이터를 찾는 법 | [data/INDEX.md](./data/INDEX.md) |
+| `learned/` | 에이전트가 배운 것 | [learned/INDEX.md](./learned/INDEX.md) |
+| `dev/` | 개발 과정에서 배운 것 | [dev/INDEX.md](./dev/INDEX.md) |
+
+## ID 규칙
+| 접두사 | type | 위치 |
+| --- | --- | --- |
+| `D-` | decision-heuristic | `domain/heuristics/` |
+| `EX-` | exception-case | `domain/exceptions/` |
+| `CAT-` | data-catalog | `data/catalog/` |
+| `Q-` | query-pattern | `data/query-patterns/` |
+| `DC-` | data-caveat | `data/caveats/` |
+| `F-` | finding | `learned/items/` |
+| `L-` | lessons-learned | `dev/lessons/` |
+| `FM-` | failure-mode | `dev/failure-modes/` |
+| `ADR-` | adr | `dev/decisions/` |
+| `RJ-` | rejected-experiment | `dev/rejected/` |
+
+파일명은 `<ID>-<짧은-설명>.md`. 번호는 4자리, 재사용하지 않는다.
+
+## 공통 frontmatter
+```yaml
+id: Q-0001
+type: query-pattern
+status: draft            # draft | validated | deprecated
+tags: []
+source: []               # raw/ 경로, ISS·CHG ID
+evidence: []             # replay:CASE-###, evals/<suite>/<ID>, CHG-####
+last_verified: null      # validated면 필수 (YYYY-MM-DD)
+superseded_by: null      # deprecated면 대체 KI ID 또는 사유
+```
+
+## 규칙
+- `validated`는 `evidence`와 `last_verified`가 있어야 한다.
+- `evals/splits.json`의 `holdout` 케이스는 `source`에 쓸 수 없다.
+- KI 하나는 100줄 이내, 사실 하나.
+- 새 KI는 유형별 `_TEMPLATE.md`를 복사해 만든다.
+- 검사: `node ci/check-harness.mjs`
+~~~~~
+
+~~~~~file path=knowledge/data/INDEX.md
+# knowledge/data/ — Data Knowledge
+
+> 방대한 DB·RAG에서 올바른 데이터를 찾는 법을 담는다. 소비자는 대상 에이전트다.
+> 등록된 KI만 여기 적는다. Draft는 적지 않는다.
+
+## Validated
+| ID | 한 줄 요약 | tags |
+| --- | --- | --- |
+
+## Deprecated
+| ID | 대체 KI | 사유 |
+| --- | --- | --- |
+
+## KI 유형
+- `catalog/`: Data Catalog (테이블·컬렉션이 무엇을 담는가)
+- `query-patterns/`: Query Pattern (목적 → 조회 방법)
+- `caveats/`: Data Caveat (단위·중복·시점 등 주의사항)
+~~~~~
+
+~~~~~file path=knowledge/data/catalog/.gitkeep
+~~~~~
+
+~~~~~file path=knowledge/data/catalog/_TEMPLATE.md
+---
+id: CAT-0000
+type: data-catalog
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## 대상
+<테이블·컬렉션·문서군 이름과 위치>
+
+## 무엇을 담는가
+<한 행·한 문서가 뜻하는 것, 갱신 주기, 범위>
+
+## 주요 필드
+| 필드 | 뜻 | 단위·형식 |
+| --- | --- | --- |
+
+## 연결
+<조인 키, 관련 대상, 관련 Data Caveat ID>
+~~~~~
+
+~~~~~file path=knowledge/data/caveats/_TEMPLATE.md
+---
+id: DC-0000
+type: data-caveat
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## 대상
+<어느 데이터의 주의사항인가 (Data Catalog ID)>
+
+## 주의할 점
+<무엇을 놓치면 어떻게 틀리는가>
+
+## 올바른 처리
+<어떻게 조회·해석해야 하는가>
+~~~~~
+
+~~~~~file path=knowledge/data/query-patterns/_TEMPLATE.md
+---
+id: Q-0000
+type: query-pattern
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Purpose
+<어떤 목적의 요청에 쓰는 조회인가>
+
+## Pattern
+<쿼리 또는 검색 방법. 바뀌는 부분은 매개변수로 표시>
+
+## 결과 확인
+<결과가 맞는지 확인하는 방법 (건수, 합계 대조 등)>
+
+## Caveats
+<관련 Data Caveat ID>
+~~~~~
+
+~~~~~file path=knowledge/dev/INDEX.md
+# knowledge/dev/ — Development Knowledge
+
+> 에이전트를 만드는 과정에서 배운 것을 담는다. 소비자는 개발 에이전트와 사람이다. agent/ 변경 전에 먼저 조회한다.
+> 등록된 KI만 여기 적는다. Draft는 적지 않는다.
+
+## Validated
+| ID | 한 줄 요약 | tags |
+| --- | --- | --- |
+
+## Deprecated
+| ID | 대체 KI | 사유 |
+| --- | --- | --- |
+
+## KI 유형
+- `lessons/`: Lessons Learned (무엇이 통했나, 부작용은)
+- `failure-modes/`: Failure Mode (반복되는 실패 유형과 원인)
+- `decisions/`: ADR (구조·방식을 왜 그렇게 정했나)
+- `rejected/`: Rejected Experiment (시도했지만 효과 없던 변경)
+~~~~~
+
+~~~~~file path=knowledge/dev/decisions/_TEMPLATE.md
+---
+id: ADR-0000
+type: adr
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Context
+<무엇이 불편했나, 어떤 제약이 있었나>
+
+## Options
+<검토한 대안과 각각의 장단점>
+
+## Decision
+<무엇을 정했나, 왜>
+
+## Consequences
+<바뀌는 것, 감수하는 것, 다시 검토할 조건>
+~~~~~
+
+~~~~~file path=knowledge/dev/failure-modes/_TEMPLATE.md
+---
+id: FM-0000
+type: failure-mode
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## 증상
+<어떻게 실패하는가. 관련 ISS ID (2건 이상)>
+
+## 원인
+<확인된 원인. 추정이면 추정이라고 적는다>
+
+## 탐지
+<이 실패를 잡는 Eval Case ID>
+
+## 대응
+<알려진 해결 방법 (L·CHG ID), 아직 없으면 없음>
+~~~~~
+
+~~~~~file path=knowledge/dev/lessons/_TEMPLATE.md
+---
+id: L-0000
+type: lessons-learned
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Situation
+<어떤 문제를 풀려던 변경인가>
+
+## Lesson
+<무엇이 통했나. 전후 점수>
+
+## Side effect
+<함께 나빠진 것, 주의할 점>
+
+## Applied to
+<agent/ 경로>
+~~~~~
+
+~~~~~file path=knowledge/dev/rejected/_TEMPLATE.md
+---
+id: RJ-0000
+type: rejected-experiment
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## 시도한 것
+<가설과 변경 내용. CHG ID>
+
+## 결과
+<전후 점수, Regression>
+
+## 왜 안 됐나
+<확인된 이유. 추정이면 추정이라고 적는다>
+
+## 다시 시도할 조건
+<무엇이 바뀌면 다시 해 볼 만한가>
+~~~~~
+
+~~~~~file path=knowledge/domain/INDEX.md
+# knowledge/domain/ — Domain Knowledge
+
+> 사람이 하던 판단을 담는다. 소비자는 대상 에이전트다.
+> 등록된 KI만 여기 적는다. Draft는 적지 않는다.
+
+## Validated
+| ID | 한 줄 요약 | tags |
+| --- | --- | --- |
+
+## Deprecated
+| ID | 대체 KI | 사유 |
+| --- | --- | --- |
+
+## KI 유형
+- `heuristics/`: Decision Heuristic (상황 → 볼 데이터 → 판단 기준)
+- `exceptions/`: Exception Case (규칙이 통하지 않는 사례)
+- `glossary.md`: 도메인 용어
+~~~~~
+
+~~~~~file path=knowledge/domain/exceptions/.gitkeep
+~~~~~
+
+~~~~~file path=knowledge/domain/exceptions/_TEMPLATE.md
+---
+id: EX-0000
+type: exception-case
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Situation
+<어떤 규칙(KI ID)이 통하지 않은 사례인가>
+
+## 무엇이 달랐나
+<일반 사례와 다른 조건>
+
+## 이때의 판단
+<이 조건에서는 어떻게 보는가>
+~~~~~
+
+~~~~~file path=knowledge/domain/glossary.md
+# Glossary — <도메인>
+
+> 도메인 용어. 에이전트가 요청을 해석할 때 참조한다. 용어 하나에 한 줄.
+
+| 용어 | 뜻 | 데이터에서의 대응 (테이블·컬럼·문서) |
+| --- | --- | --- |
+~~~~~
+
+~~~~~file path=knowledge/domain/heuristics/_TEMPLATE.md
+---
+id: D-0000
+type: decision-heuristic
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Situation
+<어떤 요청·상황에서 쓰는 판단인가>
+
+## Data to check
+<무엇을 어떤 순서로 보는가. 관련 Query Pattern ID>
+
+## Criteria
+<어떤 기준이면 어떤 결론인가>
+
+## Caveats
+<관련 Data Caveat ID, 통하지 않는 경우>
+
+## 사람이 실제로 한 것
+<원본 문서에서 이 판단이 드러난 부분 요약. 페이지·그림 위치>
+~~~~~
+
+~~~~~file path=knowledge/learned/INDEX.md
+# knowledge/learned/ — Learned Knowledge
+
+> 에이전트가 실행 중 스스로 발견한 것을 담는다. 제안(`evolution/proposals/`)이 Eval Gate를 통과한 뒤에만 여기 온다.
+> 등록된 KI만 여기 적는다. Draft는 적지 않는다.
+
+## Validated
+| ID | 한 줄 요약 | tags |
+| --- | --- | --- |
+
+## Deprecated
+| ID | 대체 KI | 사유 |
+| --- | --- | --- |
+
+## KI 유형
+- `items/`: Finding (발견한 사실·절차)
+~~~~~
+
+~~~~~file path=knowledge/learned/items/.gitkeep
+~~~~~
+
+~~~~~file path=knowledge/learned/items/_TEMPLATE.md
+---
+id: F-0000
+type: finding
+status: draft
+tags: []
+source: []
+evidence: []
+last_verified: null
+superseded_by: null
+---
+## Situation
+<어떤 상황에서 발견했나. 제안 ID, 트레이스 위치>
+
+## Finding
+<발견한 사실 또는 절차>
+
+## 적용 범위
+<어디까지 통하는가, 확인되지 않은 범위>
+~~~~~
+
+~~~~~file path=knowledge/raw/cases/_CASE_TEMPLATE/meta.md
+# CASE-000 — <케이스 한 줄 설명>
+
+> 분석 케이스 한 건의 원본 묶음. 이 폴더의 파일은 등록 후 수정하지 않는다.
+
+- **요청**: <분석을 시작하게 한 원래 요청·질문>
+- **분석 문서**: `report.<확장자>` (캡처 이미지 포함 여부, 쪽수)
+- **데이터 스냅샷**: `data/` 또는 <외부 위치와 접근 방법>
+- **데이터 시점**: <YYYY-MM-DD 기준>
+- **작성자·검토 가능한 전문가**: <역할>
+- **Split**: <distill | holdout> (`evals/splits.json`과 일치시킨다)
+- **민감 정보 처리**: <처리한 내용 또는 없음>
+- **비고**: <추출에 쓰지 않았다면 그 이유>
+~~~~~
+
+~~~~~file path=knowledge/raw/reports/.gitkeep
+~~~~~
+
+~~~~~file path=knowledge/raw/schemas/.gitkeep
+~~~~~
+
+~~~~~file path=knowledge/raw/transcripts/.gitkeep
+~~~~~
+
+~~~~~file path=ops/changes/REGISTRY.md
+# Change Registry
+
+> Change Record 한 건에 한 줄. 최신이 위. 상세는 각 `CHG-####.md`.
+
+| ID | 날짜 | 계기 | 대상 | 전 → 후 | 결정 | KI |
+| --- | --- | --- | --- | --- | --- | --- |
+~~~~~
+
+~~~~~file path=ops/changes/_TEMPLATE.md
+---
+id: CHG-0000
+status: proposed          # proposed | adopted | rejected | rolled-back
+date: null                # YYYY-MM-DD
+author: human             # human | agent
+trigger: []               # ISS-####, KI ID, P-####
+targets: []               # agent/ 경로
+eval_suite: smoke         # smoke | full
+eval_before: null         # evals/results/<run-id>.json
+eval_after: null
+knowledge: []             # 이 변경에서 추출한 KI ID
+---
+## 가설
+<무엇을 바꾸면 어떤 케이스·점수가 어떻게 달라질 것인가. 하나만 적는다.>
+
+## Prior Knowledge
+<knowledge/dev/에서 찾은 관련 KI ID. 없으면 없음.>
+
+## 변경 내용
+<바꾼 것을 대상 경로별로 요약.>
+
+## 평가 결과
+| Suite | 전 | 후 | 비고 |
+| --- | --- | --- | --- |
+
+- 목표 Eval Case: <ID와 통과 여부>
+- Regression: <떨어진 케이스 ID 또는 없음>
+
+## 부작용
+<함께 나빠진 것, 비용·지연 변화.>
+
+## 결정과 이유
+<adopted / rejected / rolled-back 중 무엇으로 닫았고 왜인가.>
+~~~~~
+
+~~~~~file path=ops/experiments/.gitkeep
+~~~~~
+
+~~~~~file path=ops/issues/_TEMPLATE.md
+---
+id: ISS-0000
+status: open              # open | fixed | wontfix
+date: null                # YYYY-MM-DD
+stage: retrieval          # intent | retrieval | analysis | other
+tags: []
+eval_case: []             # 이 실패를 재현하는 Eval Case ID (fixed면 필수)
+change: []                # 이 이슈를 다룬 CHG ID (fixed면 필수)
+failure_mode: null        # 해당하면 FM ID
+---
+## 무엇이 틀렸나
+<요청, 에이전트의 결과, 기대한 결과.>
+
+## 어디서 틀렸나
+<목적 파악 / 조회 / 분석 중 어느 단계인가. 트레이스 위치.>
+
+## 재현
+<재현 방법. 등록한 Eval Case ID.>
+~~~~~
+
+~~~~~file path=traces/.gitkeep
+~~~~~

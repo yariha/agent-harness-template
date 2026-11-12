@@ -1,0 +1,8 @@
+{
+  "_comment": "채택된 변경의 평가 결과로만 갱신한다. suites가 비어 있으면 게이트는 측정 전으로 보고 통과시킨다.",
+  "measured_at": null,
+  "change": null,
+  "tolerance": 0,
+  "notes": "",
+  "suites": {}
+}

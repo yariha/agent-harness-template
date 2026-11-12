@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>에이전트 하네스 구조 v3</title>
+<style>
+:root{--bg:#faf9f5;--fg:#2c2c2a;--mut:#5f5e5a;--line:#73726c;--card:#fff;
+--p-bg:#EEEDFE;--p-b:#534AB7;--p-t:#3C3489;--t-bg:#E1F5EE;--t-b:#0F6E56;--t-t:#085041;--c-bg:#FAECE7;--c-b:#993C1D;--c-t:#712B13;--g-bg:#F1EFE8;--g-b:#5F5E5A;--g-t:#444441;--a-bg:#FAEEDA;--a-b:#854F0B;--a-t:#633806}
+@media (prefers-color-scheme:dark){:root{--bg:#1f1e1d;--fg:#eee;--mut:#b4b2a9;--line:#9c9a92;--card:#2a2928;
+--p-bg:#2a2560;--p-b:#AFA9EC;--p-t:#EEEDFE;--t-bg:#06392f;--t-b:#5DCAA5;--t-t:#E1F5EE;--c-bg:#4f1f0e;--c-b:#F0997B;--c-t:#FAECE7;--g-bg:#363634;--g-b:#B4B2A9;--g-t:#F1EFE8;--a-bg:#4a2c05;--a-b:#EF9F27;--a-t:#FAEEDA}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;padding:24px 16px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 8px;font-size:14px}
+h2{font-size:17px;font-weight:500;margin:40px 0 6px}h2+p{margin:0 0 12px;color:var(--mut);font-size:14px}
+.scroll{overflow-x:auto}
+svg{display:block;min-width:780px;width:100%;height:auto}svg text{font-family:inherit}
+.th{font-size:14.5px;font-weight:500}.ts{font-size:12px}.lab{font-size:12.5px;fill:var(--mut)}
+.p rect{fill:var(--p-bg);stroke:var(--p-b)}.p text{fill:var(--p-t)}
+.t rect{fill:var(--t-bg);stroke:var(--t-b)}.t text{fill:var(--t-t)}
+.c rect{fill:var(--c-bg);stroke:var(--c-b)}.c text{fill:var(--c-t)}
+.g rect{fill:var(--g-bg);stroke:var(--g-b)}.g text{fill:var(--g-t)}
+.a rect{fill:var(--a-bg);stroke:var(--a-b)}.a text{fill:var(--a-t)}
+.ar{stroke:var(--line);stroke-width:1.5;fill:none}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--g-b);border-radius:10px;padding:12px 14px;font-size:13px}
+.card h3{margin:0 0 4px;font-size:14px;font-weight:500}.card p{margin:0 0 6px;color:var(--mut)}
+.bp{background:var(--p-bg);border-color:var(--p-b);color:var(--p-t)}.bt{background:var(--t-bg);border-color:var(--t-b);color:var(--t-t)}.bc{background:var(--c-bg);border-color:var(--c-b);color:var(--c-t)}.bg{background:var(--g-bg);border-color:var(--g-b);color:var(--g-t)}.ba{background:var(--a-bg);border-color:var(--a-b);color:var(--a-t)}
+.bp p,.bt p,.bc p,.bg p,.ba p{color:inherit;opacity:.9}
+.card small{display:block;font-size:11.5px;opacity:.8}
+code,pre{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+pre{background:var(--card);border:1px solid var(--g-b);border-radius:10px;padding:14px;overflow-x:auto;margin:0;line-height:1.5}
+pre .m{color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid var(--g-b);padding:7px 8px;text-align:left;vertical-align:top}th{font-weight:500;color:var(--mut)}
+.note{font-size:13px;color:var(--mut);margin:10px 0 0}
+@media(max-width:820px){.g3,.g2{grid-template-columns:1fr}.g6{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head><body><div class="wrap">
+<h1>에이전트 하네스 구조 v3</h1>
+<p class="sub">자가진화 에이전트 개발용 템플릿. 지식 베이스 네 영역을 같은 라이프사이클로 축적하고, 모든 변경을 평가 게이트로 검증하며, 결과를 변경 레지스트리에 남긴다.</p>
+
+<h2>1. 전체 구조 — 세 개의 축</h2>
+<p>지식(무엇을 아는가) · 평가(얼마나 잘하는가) · 변경(무엇이 왜 바뀌었는가)이 서로를 참조한다.</p>
+<div class="grid g3">
+ <div class="card bp"><h3>Knowledge Base — knowledge/</h3><p>Domain · Data · Learned · Dev 네 영역. 모든 지식 항목(Knowledge Item, KI)이 같은 형식과 라이프사이클을 따른다.</p></div>
+ <div class="card bt"><h3>Eval Suite — evals/</h3><p>Retrieval · Analysis · Regression 평가 세트와 베이스라인. KI와 이슈가 평가 케이스의 원천이다.</p></div>
+ <div class="card ba"><h3>Change Registry — ops/</h3><p>이슈, 변경 레코드, 실험. 변경 레코드 한 건 = 계기 → 가설 → 변경 내용 → 전후 점수 → 채택/롤백.</p></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+ <div class="card bc"><h3>진화 대상 — agent/</h3><p>프롬프트 · 스킬 · 도구 · 검색 설정. 성능에 영향을 주는 것은 전부 여기 있고, 평가 게이트를 통과한 변경만 반영된다.</p></div>
+ <div class="card bg"><h3>문서 지도와 절차 — docs/ · .claude/ · ci/</h3><p>기존 템플릿 그대로. SSOT → INDEX 문서 지도, 절차 스킬, CI 게이트.</p></div>
+</div>
+
+<h2>2. 지식 흐름</h2>
+<p>원천 네 가지가 각 영역으로 Distill되고, 소비자는 둘이다. 대상 에이전트(만들어지는 제품)와 개발 에이전트 · 사람(만드는 쪽).</p>
+<div class="scroll">
+<svg viewBox="0 0 980 450" role="img" aria-label="원천 네 가지가 지식 베이스 네 영역으로 추출되고, 대상 에이전트 런타임과 개발 에이전트가 각각 소비하며, Validated 지식 항목은 평가 케이스 또는 변경 레코드와 연결된다">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<text class="lab" x="40" y="34">원천 (원본 불변)</text><text class="lab" x="365" y="34">Knowledge Base 영역</text><text class="lab" x="690" y="34">소비자</text>
+<g class="g"><rect x="40" y="50" width="250" height="60" rx="10"/><text class="th" x="165" y="74" text-anchor="middle">분석 케이스 · 리포트 · 인터뷰</text><text class="ts" x="165" y="94" text-anchor="middle">knowledge/raw/cases/ · reports/</text></g>
+<g class="g"><rect x="40" y="126" width="250" height="60" rx="10"/><text class="th" x="165" y="150" text-anchor="middle">DB 스키마 · 쿼리 이력</text><text class="ts" x="165" y="170" text-anchor="middle">knowledge/raw/schemas/</text></g>
+<g class="g"><rect x="40" y="202" width="250" height="60" rx="10"/><text class="th" x="165" y="226" text-anchor="middle">트레이스 · 자가 개선 제안</text><text class="ts" x="165" y="246" text-anchor="middle">traces/ · evolution/proposals/</text></g>
+<g class="g"><rect x="40" y="278" width="250" height="60" rx="10"/><text class="th" x="165" y="302" text-anchor="middle">개발 과정</text><text class="ts" x="165" y="322" text-anchor="middle">ops/issues · changes · experiments</text></g>
+<path class="ar" d="M290 80 H363" marker-end="url(#ah)"/><path class="ar" d="M290 156 H363" marker-end="url(#ah)"/><path class="ar" d="M290 232 H363" marker-end="url(#ah)"/><path class="ar" d="M290 308 H363" marker-end="url(#ah)"/>
+<g class="p"><rect x="365" y="50" width="250" height="60" rx="10"/><text class="th" x="490" y="74" text-anchor="middle">knowledge/domain/</text><text class="ts" x="490" y="94" text-anchor="middle">Decision Heuristic · 용어 · 예외</text></g>
+<g class="p"><rect x="365" y="126" width="250" height="60" rx="10"/><text class="th" x="490" y="150" text-anchor="middle">knowledge/data/</text><text class="ts" x="490" y="170" text-anchor="middle">Data Catalog · Query Pattern · Caveat</text></g>
+<g class="p"><rect x="365" y="202" width="250" height="60" rx="10"/><text class="th" x="490" y="226" text-anchor="middle">knowledge/learned/</text><text class="ts" x="490" y="246" text-anchor="middle">에이전트 학습 (Validate 후 Promote)</text></g>
+<g class="p"><rect x="365" y="278" width="250" height="60" rx="10"/><text class="th" x="490" y="302" text-anchor="middle">knowledge/dev/</text><text class="ts" x="490" y="322" text-anchor="middle">Lessons · Failure Mode · ADR · Rejected</text></g>
+<path class="ar" d="M615 80 H688" marker-end="url(#ah)"/><path class="ar" d="M615 156 H688" marker-end="url(#ah)"/><path class="ar" d="M615 232 H688" marker-end="url(#ah)"/><path class="ar" d="M615 308 H688" marker-end="url(#ah)"/>
+<g class="c"><rect x="690" y="50" width="250" height="212" rx="10"/><text class="th" x="815" y="136" text-anchor="middle">대상 에이전트 런타임</text><text class="ts" x="815" y="158" text-anchor="middle">상황 태그로 관련 KI만 검색해 Serve</text><text class="ts" x="815" y="176" text-anchor="middle">(전체를 컨텍스트에 싣지 않는다)</text></g>
+<g class="c"><rect x="690" y="278" width="250" height="60" rx="10"/><text class="th" x="815" y="302" text-anchor="middle">개발 에이전트 · 사람</text><text class="ts" x="815" y="322" text-anchor="middle">변경 전에 과거 시도를 먼저 조회</text></g>
+<path class="ar" d="M490 338 V370" marker-end="url(#ah)"/>
+<g class="t"><rect x="365" y="372" width="575" height="56" rx="10"/><text class="th" x="652" y="395" text-anchor="middle">evals/ — Validated KI는 Eval Case 또는 Change Record를 근거로 가진다</text><text class="ts" x="652" y="414" text-anchor="middle">근거가 없는 KI는 Draft 상태로 남는다</text></g>
+</svg>
+</div>
+
+<h2>3. Knowledge Base 네 영역</h2>
+<p>사람의 암묵지는 넷 중 하나다. 개발 과정의 지식도 같은 무게로 축적한다.</p>
+<table>
+<tr><th>영역</th><th>담는 것</th><th>원천</th><th>KI 유형</th><th>소비자</th></tr>
+<tr><td><code>domain/</code></td><td>사람이 하던 판단. "이 상황이면 이 데이터를 보고 이 기준으로 결론낸다"</td><td>분석 케이스(문서 + raw data), 리포트, 인터뷰, 전문가 교정</td><td>Decision Heuristic, Glossary, Exception Case</td><td>대상 에이전트</td></tr>
+<tr><td><code>data/</code></td><td>방대한 DB에서 올바른 데이터를 찾는 법</td><td>스키마, 성공 · 실패한 쿼리, RAG 검색 결과 분석</td><td>Data Catalog, Query Pattern(목적 → 쿼리), Data Caveat(단위 · 중복 · 시점), Embedding/Chunking Note</td><td>대상 에이전트</td></tr>
+<tr><td><code>learned/</code></td><td>에이전트가 실행 중 스스로 발견한 것</td><td>트레이스, 자가 개선 제안</td><td>Finding, Procedure Draft</td><td>대상 에이전트 (Validate 후)</td></tr>
+<tr><td><code>dev/</code></td><td>에이전트를 만드는 과정에서 배운 것</td><td>이슈, 변경 레코드, 기각된 실험, 평가 설계 경험</td><td>Lessons Learned, Failure Mode, ADR, Rejected Experiment, Eval Design Note</td><td>개발 에이전트 · 사람</td></tr>
+</table>
+
+<h2>4. 지식 라이프사이클</h2>
+<p>네 영역 모두 같은 여섯 단계를 거친다.</p>
+<div class="grid g6">
+ <div class="card bg"><h3>① Capture</h3><p>원본을 raw/에 그대로 보관한다. 수정하지 않는다.</p><small>케이스, 스키마, 트레이스, 변경 레코드</small></div>
+ <div class="card bp"><h3>② Distill</h3><p>원본에서 KI 하나 = 사실 하나로 추출한다. 상태는 Draft.</p><small>스킬: distill-knowledge</small></div>
+ <div class="card bt"><h3>③ Validate</h3><p>KI를 Eval Case로 만들거나 Change Record의 점수로 뒷받침한다.</p><small>스킬: case-from-ki</small></div>
+ <div class="card bp"><h3>④ Promote</h3><p>근거가 붙으면 Validated. 영역 INDEX에 등록된다.</p><small>learned는 사람 승인 필요 (제안)</small></div>
+ <div class="card bc"><h3>⑤ Serve</h3><p>상황 태그로 검색해 필요한 KI만 제공한다. 사용 이력이 남는다.</p><small>런타임 / 개발 세션</small></div>
+ <div class="card ba"><h3>⑥ Maintain</h3><p>낡았거나 충돌하면 Re-validation. 진 쪽은 Deprecated로 바꾸고 대체 KI를 가리킨다.</p><small>스킬: review-knowledge</small></div>
+</div>
+
+<h2>5. 적용 예시 — 분석 케이스로 지식 베이스를 처음 채우기 (Knowledge Bootstrapping)</h2>
+<p>raw data가 남아 있는 분석 케이스에서, 사람이 쓴 분석 문서와 데이터를 에이전트에게 주고 "어떻게 이렇게 분석됐는가"를 역분석시켜 지식으로 축적하는 흐름.</p>
+<div class="scroll">
+<svg viewBox="0 0 980 760" role="img" aria-label="분석 케이스를 Distill 세트와 Hold-out 세트로 나누고, Distill 세트는 역분석을 거쳐 지식 항목 초안이 되어 재현 검증과 전문가 리뷰 후 Validated로 승격되며, Hold-out 세트는 평가 케이스가 되어 블라인드 평가로 베이스라인을 만든다">
+<g class="g"><rect x="40" y="40" width="900" height="60" rx="10"/><text class="th" x="490" y="64" text-anchor="middle">① Capture — 분석 케이스 = 사람의 분석 문서(캡처 이미지 포함) + 당시 raw data</text><text class="ts" x="490" y="84" text-anchor="middle">knowledge/raw/cases/CASE-###/ 에 원본 그대로 보관</text></g>
+<path class="ar" d="M320 100 V138" marker-end="url(#ah)"/><path class="ar" d="M800 100 V138" marker-end="url(#ah)"/>
+<g class="g"><rect x="40" y="140" width="560" height="60" rx="10"/><text class="th" x="320" y="164" text-anchor="middle">Distill 세트</text><text class="ts" x="320" y="184" text-anchor="middle">지식을 뽑아내는 데 쓰는 케이스</text></g>
+<g class="g"><rect x="660" y="140" width="280" height="60" rx="10"/><text class="th" x="800" y="164" text-anchor="middle">Hold-out 세트</text><text class="ts" x="800" y="184" text-anchor="middle">평가에만 쓰는 케이스 (Distill 금지)</text></g>
+<path class="ar" d="M320 200 V238" marker-end="url(#ah)"/><path class="ar" d="M800 200 V238" marker-end="url(#ah)"/>
+<g class="p"><rect x="40" y="240" width="560" height="64" rx="10"/><text class="th" x="320" y="265" text-anchor="middle">② Distill — 역분석 (Reverse Analysis)</text><text class="ts" x="320" y="286" text-anchor="middle">문서와 데이터를 대조해 요청 목적 → 조회한 데이터 → 판단 기준을 재구성</text></g>
+<g class="t"><rect x="660" y="240" width="280" height="64" rx="10"/><text class="th" x="800" y="265" text-anchor="middle">Eval Case 작성</text><text class="ts" x="800" y="286" text-anchor="middle">입력: 요청 + 데이터 / 정답: 사람의 결론</text></g>
+<path class="ar" d="M320 304 L128 344" marker-end="url(#ah)"/><path class="ar" d="M320 304 V344" marker-end="url(#ah)"/><path class="ar" d="M320 304 L512 344" marker-end="url(#ah)"/>
+<g class="p"><rect x="40" y="346" width="176" height="64" rx="10"/><text class="th" x="128" y="371" text-anchor="middle">Decision Heuristic</text><text class="ts" x="128" y="392" text-anchor="middle">domain/ · Draft</text></g>
+<g class="p"><rect x="232" y="346" width="176" height="64" rx="10"/><text class="th" x="320" y="371" text-anchor="middle">Query Pattern</text><text class="ts" x="320" y="392" text-anchor="middle">data/ · Draft</text></g>
+<g class="p"><rect x="424" y="346" width="176" height="64" rx="10"/><text class="th" x="512" y="371" text-anchor="middle">Data Caveat</text><text class="ts" x="512" y="392" text-anchor="middle">data/ · Draft</text></g>
+<path class="ar" d="M128 410 V450" marker-end="url(#ah)"/><path class="ar" d="M320 410 V450" marker-end="url(#ah)"/><path class="ar" d="M512 410 V450" marker-end="url(#ah)"/>
+<g class="t"><rect x="40" y="452" width="560" height="64" rx="10"/><text class="th" x="320" y="477" text-anchor="middle">③ Validate — 재현 검증 (Replay) + 전문가 리뷰</text><text class="ts" x="320" y="498" text-anchor="middle">재구성한 쿼리로 문서의 수치가 다시 나오는가 · 판단 기준이 맞는가</text></g>
+<path class="ar" d="M320 516 V556" marker-end="url(#ah)"/>
+<g class="p"><rect x="40" y="558" width="560" height="64" rx="10"/><text class="th" x="320" y="583" text-anchor="middle">④ Promote — Validated KI</text><text class="ts" x="320" y="604" text-anchor="middle">근거(재현 결과 · 리뷰 기록)를 메타데이터에 연결해 영역 INDEX에 등록</text></g>
+<path class="ar" d="M800 304 V450" marker-end="url(#ah)"/>
+<g class="t"><rect x="660" y="452" width="280" height="64" rx="10"/><text class="th" x="800" y="477" text-anchor="middle">⑤ Blind 평가</text><text class="ts" x="800" y="498" text-anchor="middle">문서 없이 KI만으로 분석 → 사람과 비교</text></g>
+<path class="ar" d="M600 590 H630 V484 H658" marker-end="url(#ah)"/>
+<text class="lab" x="636" y="548">KI Serve</text>
+<path class="ar" d="M800 516 V556" marker-end="url(#ah)"/>
+<g class="a"><rect x="660" y="558" width="280" height="64" rx="10"/><text class="th" x="800" y="583" text-anchor="middle">Baseline 확정</text><text class="ts" x="800" y="604" text-anchor="middle">evals/baseline.json — 이후 변경의 기준</text></g>
+<path class="ar" d="M320 622 V662" marker-end="url(#ah)"/><path class="ar" d="M800 622 V662" marker-end="url(#ah)"/>
+<g class="a"><rect x="40" y="664" width="900" height="64" rx="10"/><text class="th" x="490" y="689" text-anchor="middle">⑥ 불일치 처리 — 재현 실패 · 평가 오답 → ISS → CHG → knowledge/dev/</text><text class="ts" x="490" y="710" text-anchor="middle">왜 틀렸는지가 Lessons Learned · Failure Mode로 남는다. 개발 과정 지식의 첫 축적 지점.</text></g>
+</svg>
+</div>
+
+<p class="note">아래는 이해를 돕기 위한 가상의 케이스다.</p>
+<table>
+<tr><th>단계</th><th>에이전트가 하는 일</th><th>남는 산출물</th></tr>
+<tr><td>① Capture</td><td>"주간 매출 급감 분석" 문서와 당시 데이터 스냅샷을 등록</td><td><code>raw/cases/CASE-003/</code> (report, data, meta)</td></tr>
+<tr><td>② Distill</td><td>문서의 표 · 그래프(캡처 이미지)를 데이터와 대조. "채널별로 분해했고, 같은 요일 4주와 비교했고, 한 채널에 집중돼 채널 이슈로 결론" 을 재구성</td><td>D-0007 Decision Heuristic, Q-0012 Query Pattern(채널별 주간 집계), DC-0004 Data Caveat(환불 건 제외 필요) — 모두 Draft</td></tr>
+<tr><td>③ Validate</td><td>Q-0012로 조회해 문서의 수치가 재현되는지 확인. 설명되지 않는 부분은 전문가에게 질문 목록으로 전달</td><td>재현 결과, 리뷰 기록, 전문가 답변(새 KI의 원천)</td></tr>
+<tr><td>④ Promote</td><td>재현되고 리뷰를 통과한 KI를 Validated로 승격</td><td>KI 메타데이터의 evidence · last_verified 갱신, INDEX 등록</td></tr>
+<tr><td>⑤ Blind 평가</td><td>Hold-out 케이스(CASE-009 등)의 요청과 데이터만 받고 분석. 조회한 데이터와 결론을 사람의 문서와 비교</td><td>Eval Case R-021(Retrieval), A-014(Analysis), 첫 Baseline</td></tr>
+<tr><td>⑥ 불일치</td><td>CASE-009에서 기간 조건을 잘못 잡아 오답 → 이슈 등록 → 변경 → 재평가</td><td>ISS-0017 → CHG-0031 → L-0012 Lessons Learned</td></tr>
+</table>
+<div class="grid g3" style="margin-top:12px">
+ <div class="card"><h3>왜 Hold-out을 나누나</h3><p>지식을 뽑은 케이스로 다시 평가하면 "외운 답"을 맞히는 것이다. 처음 보는 케이스로 평가해야 지식이 일반화되는지 알 수 있다.</p></div>
+ <div class="card"><h3>왜 재현 검증인가</h3><p>raw data가 있으므로 "문서의 수치가 다시 나오는가"로 Query Pattern을 객관적으로 검증할 수 있다. 추측한 분석 절차가 걸러진다.</p></div>
+ <div class="card"><h3>data가 없는 옛 리포트는</h3><p>재현할 수 없으므로 절차만 추출해 Draft로 둔다. 전문가 리뷰나 이후 유사 케이스의 평가 결과가 근거로 붙을 때 승격한다.</p></div>
+</div>
+
+<h2>6. KI 한 건의 형식</h2>
+<p>모든 KI는 메타데이터(frontmatter)로 출처 · 근거 · 상태를 가진다. 이것이 Traceability의 열쇠다.</p>
+<div class="grid g2">
+<pre><span class="m"># knowledge/domain/heuristics/D-0007-drop-analysis.md</span>
+---
+id: D-0007
+type: decision-heuristic
+status: validated       <span class="m"># draft → validated → deprecated</span>
+tags: [급감분석, 매출]
+source: [raw/cases/CASE-003]
+evidence: [replay:CASE-003, evals/analysis#A-014]
+last_verified: 2026-11-12
+---
+<b>Situation</b>  지표가 전주 대비 급감
+<b>Data to check</b>  ① 채널별 분해 (Q-0012)
+               ② 같은 요일 4주 비교
+<b>Criteria</b>  한 채널에 집중되면 채널 이슈,
+          고르게 빠지면 계절성부터 의심
+<b>Caveats</b>  DC-0004 (환불 건 제외)</pre>
+<pre><span class="m"># knowledge/dev/lessons/L-0012-date-filter-first.md</span>
+---
+id: L-0012
+type: lessons-learned   <span class="m"># | failure-mode | adr | rejected</span>
+status: validated
+tags: [retrieval, 기간조건]
+source: [CHG-0031, ISS-0017]
+evidence: [evals/retrieval#R-021, R-022]
+last_verified: 2026-11-12
+supersedes: L-0004
+---
+<b>Situation</b>  기간이 암시된 요청("지난 분기")
+<b>Lesson</b>  조회 계획에서 기간 조건을 먼저 확정하면
+        Retrieval 정확도가 오른다 (71% → 84%)
+<b>Side effect</b>  기간이 없는 요청에서 되묻기 증가
+<b>Applied to</b>  agent/prompts/plan-query.md</pre>
+</div>
+
+<h2>7. Traceability</h2>
+<p>어느 한 곳에서 시작해도 나머지를 따라갈 수 있다.</p>
+<div class="scroll">
+<svg viewBox="0 0 980 150" role="img" aria-label="이슈가 평가 케이스로, 평가 케이스가 변경 레코드로, 변경 레코드가 지식 항목으로 이어지고 지식 항목은 다음 변경 때 다시 조회된다">
+<g class="a"><rect x="40" y="40" width="190" height="64" rx="10"/><text class="th" x="135" y="66" text-anchor="middle">Issue ISS-0017</text><text class="ts" x="135" y="86" text-anchor="middle">무엇이 틀렸나</text></g>
+<path class="ar" d="M230 72 H268" marker-end="url(#ah)"/>
+<g class="t"><rect x="270" y="40" width="190" height="64" rx="10"/><text class="th" x="365" y="66" text-anchor="middle">Eval Case R-021</text><text class="ts" x="365" y="86" text-anchor="middle">같은 실패를 재현</text></g>
+<path class="ar" d="M460 72 H498" marker-end="url(#ah)"/>
+<g class="a"><rect x="500" y="40" width="190" height="64" rx="10"/><text class="th" x="595" y="66" text-anchor="middle">Change Record CHG-0031</text><text class="ts" x="595" y="86" text-anchor="middle">가설 · 변경 · 전후 점수</text></g>
+<path class="ar" d="M690 72 H728" marker-end="url(#ah)"/>
+<g class="p"><rect x="730" y="40" width="210" height="64" rx="10"/><text class="th" x="835" y="66" text-anchor="middle">Knowledge Item L-0012</text><text class="ts" x="835" y="86" text-anchor="middle">다음 변경 전에 조회된다</text></g>
+<path class="ar" d="M835 104 V130 H135 V106" marker-end="url(#ah)" stroke-dasharray="5 4"/>
+<text class="lab" x="490" y="124" text-anchor="middle">유사 이슈 발생 시 KI부터 조회</text>
+</svg>
+</div>
+
+<h2>8. 관리 규칙</h2>
+<div class="grid g3">
+ <div class="card"><h3>상태는 셋</h3><p>Draft → Validated → Deprecated. Validated는 Eval Case, 재현 결과, Change Record 중 하나를 근거로 가져야 한다. Deprecated는 삭제하지 않고 대체 KI를 가리킨다.</p></div>
+ <div class="card"><h3>KI 하나 = 사실 하나</h3><p>100줄 이내. 영역마다 INDEX.md(60줄 이내)가 태그별 목록을 가진다. 넘치면 하위 영역으로 분할한다.</p></div>
+ <div class="card"><h3>충돌은 평가로 결정</h3><p>같은 상황에 상반된 KI가 생기면 둘 다 평가에 올려 진 쪽을 Deprecated 처리한다.</p></div>
+ <div class="card"><h3>Re-validation</h3><p>스키마가 바뀌면 관련 data KI를 재검증 대상으로 표시한다. 오래 검증되지 않은 KI는 정기 점검에서 다시 평가한다.</p></div>
+ <div class="card"><h3>Promote 권한</h3><p>에이전트는 Draft까지만 쓸 수 있다. Validated 승격은 평가 게이트 통과 + 사람 승인. (제안)</p></div>
+ <div class="card"><h3>Rejected도 자산</h3><p>기각된 실험은 dev/rejected로 남는다. "시도했지만 효과 없었다"가 없으면 같은 시도가 반복된다.</p></div>
+</div>
+
+<h2>9. 변경 순환</h2>
+<p>사람의 변경이든 에이전트의 자가 개선 제안이든 같은 경로를 지난다.</p>
+<div class="grid g6">
+ <div class="card bg"><h3>Signal</h3><p>이슈 · 새 KI · 자가 개선 제안</p></div>
+ <div class="card bp"><h3>Prior Knowledge</h3><p>dev 영역에서 과거 시도 조회</p></div>
+ <div class="card bt"><h3>Eval Case</h3><p>변경 전에 케이스부터 등록</p></div>
+ <div class="card ba"><h3>Change Candidate</h3><p>가설 + agent/ 변경안</p></div>
+ <div class="card bt"><h3>Eval Gate</h3><p>전후 점수 · Regression 비교</p></div>
+ <div class="card ba"><h3>Record · Distill</h3><p>Change Record → dev KI 추출</p></div>
+</div>
+
+<h2>10. 폴더 구조</h2>
+<pre>CLAUDE.md · AGENTS.md            <span class="m"># → docs/SSOT.md 한 줄 위임 (기존)</span>
+docs/                             <span class="m"># 문서 지도 + 절차 스킬 (기존 + 신규 스킬)</span>
+agent/                            <span class="m"># 진화 대상</span>
+  prompts/  skills/  tools/  retrieval/
+knowledge/
+  raw/        cases/CASE-###/ reports/ schemas/ transcripts/   <span class="m"># 원본 불변</span>
+  domain/     INDEX.md heuristics/ glossary.md exceptions/
+  data/       INDEX.md catalog/ query-patterns/ caveats/
+  learned/    INDEX.md items/
+  dev/        INDEX.md lessons/ failure-modes/ decisions/ rejected/
+evals/
+  retrieval/  analysis/  regression/              <span class="m"># Eval Case</span>
+  splits.json                                     <span class="m"># Distill / Hold-out 구분</span>
+  baseline.json  results/                         <span class="m"># 베이스라인, 실행 결과</span>
+ops/
+  issues/     ISS-####.md
+  changes/    CHG-####.md  REGISTRY.md            <span class="m"># Change Record + 요약표</span>
+  experiments/                                    <span class="m"># 진행 중 실험</span>
+evolution/
+  proposals/  <span class="m"># 자가 개선 제안 (Draft)</span>
+traces/       <span class="m"># 트레이스 (git 제외, 표본만 보관)</span>
+ci/           <span class="m"># Eval Gate: Change Record · 평가 결과 없으면 차단</span>
+artifacts/    <span class="m"># 긴 산출물 (기존)</span></pre>
+
+<h2>11. 절차 스킬 (docs/tools/)</h2>
+<table>
+<tr><th>스킬</th><th>언제</th><th>하는 일</th></tr>
+<tr><td><code>distill-knowledge</code></td><td>새 원본이 들어왔을 때</td><td>케이스 · 스키마 · Change Record에서 KI Draft 추출 (영역별 형식). 분석 케이스는 역분석 모드</td></tr>
+<tr><td><code>case-from-ki</code> / <code>case-from-issue</code></td><td>KI · 이슈가 생겼을 때</td><td>Eval Case로 변환하고 상호 링크</td></tr>
+<tr><td><code>log-change</code></td><td>agent/를 변경할 때</td><td>Change Record 작성: 계기 · 가설 · 변경 · 전후 점수 · 부작용</td></tr>
+<tr><td><code>run-evals</code></td><td>변경 전후</td><td>평가 실행, 베이스라인과 비교, 결과 저장</td></tr>
+<tr><td><code>promote-evolution</code></td><td>자가 개선 제안이 쌓였을 때</td><td>제안을 Change Candidate로 올려 Eval Gate에 태움</td></tr>
+<tr><td><code>review-knowledge</code></td><td>정기 · 스키마 변경 시</td><td>Re-validation, 충돌 해소, Deprecated 처리</td></tr>
+<tr><td>기존 유지</td><td></td><td>empirical-coding, maintain-highway, prune-harness, clarify-pre-spec, open/close-worktree</td></tr>
+</table>
+</div></body></html>

@@ -1,0 +1,9 @@
+{
+  "id": "G-0000",
+  "suite": "regression",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}

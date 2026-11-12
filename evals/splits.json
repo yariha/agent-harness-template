@@ -1,0 +1,5 @@
+{
+  "_comment": "분석 케이스의 용도 구분. holdout 케이스는 KI의 source가 될 수 없다. 나눈 뒤에는 옮기지 않는다.",
+  "distill": [],
+  "holdout": []
+}

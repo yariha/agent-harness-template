@@ -1,0 +1,9 @@
+{
+  "id": "R-0000",
+  "suite": "retrieval",
+  "source": { "case": null, "issue": null, "ki": [] },
+  "input": { "request": "", "data": "" },
+  "expected": { "result": "", "criteria": [] },
+  "grading": "exact",
+  "notes": ""
+}
