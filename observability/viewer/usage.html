@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스킬·도구·비용</title>
+<link rel="stylesheet" href="/static/viewer.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></span>
+    <div><div class="brand-name">스킬·도구·비용</div><div class="muted small">가진 것과 실제로 쓴 것 · 비용이 어디서 나오는지</div></div>
+  </div>
+  <nav class="tabs" aria-label="주요 화면">
+    <a href="/" class="tab">에이전트 흐름</a>
+    <a href="/usage" class="tab active">스킬·도구·비용</a>
+  </nav>
+</header>
+<main class="wrap">
+  <div class="filters" role="group" aria-label="기간">
+    <button type="button" class="chip" data-days="7" aria-pressed="false">7일</button>
+    <button type="button" class="chip" data-days="30" aria-pressed="true">30일</button>
+    <button type="button" class="chip" data-days="90" aria-pressed="false">90일</button>
+  </div>
+  <section class="card" aria-labelledby="cost-h">
+    <div class="row-between"><h2 id="cost-h">비용은 어디서 나오나</h2><span class="muted small" id="cost-total"></span></div>
+    <div id="cost" class="col"></div>
+  </section>
+  <section class="card" aria-labelledby="skills-h">
+    <div class="row-between"><h2 id="skills-h">스킬</h2><span class="muted small" id="skills-sub"></span></div>
+    <div id="skills"></div>
+  </section>
+  <section class="card" aria-labelledby="tools-h">
+    <div class="row-between"><h2 id="tools-h">도구</h2><span class="muted small" id="tools-sub"></span></div>
+    <div class="table-scroll"><table class="cap-table" id="tools"></table></div>
+  </section>
+</main>
+<script type="module" src="/static/usage.js"></script>
+</body>
+</html>

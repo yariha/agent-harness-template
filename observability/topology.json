@@ -1,0 +1,50 @@
+{
+  "_comment": "에이전트 구성도. 프로젝트에 맞게 노드 이름·역할·match를 고친다. 형식은 observability/VIEWER.md",
+  "lanes": [
+    { "key": "req", "name": "요청", "desc": "사용자 · 예약" },
+    { "key": "worker", "name": "워커 (LLM)", "desc": "생각하고 도구를 고름" },
+    { "key": "read", "name": "조회", "desc": "DB · 문서 읽기" },
+    { "key": "write", "name": "저장", "desc": "기억 · 결과 쓰기" },
+    { "key": "web", "name": "웹", "desc": "검색 · 페이지" },
+    { "key": "out", "name": "응답", "desc": "사용자에게 보냄" }
+  ],
+  "nodes": [
+    { "id": "trig.user", "c": 0, "r": 0, "icon": "trigger", "name": "사용자 요청", "role": "메시지 · 명령 · API 호출", "ns": "trigger.user", "lane": "req", "match": { "kind": "trigger", "trigger": "^(?!schedule$)" } },
+    { "id": "trig.schedule", "c": 0, "r": 1, "icon": "clock", "name": "예약 실행", "role": "cron · 배치", "ns": "trigger.schedule", "lane": "req", "match": { "kind": "trigger", "trigger": "^schedule$" } },
+    { "id": "app", "c": 1, "r": 0, "icon": "bot", "name": "응용 코드", "role": "요청을 작업으로 바꿈", "ns": "app.handler", "lane": "req", "via": ["trig.user"], "match": { "kind": "error" } },
+    { "id": "jobs", "c": 1, "r": 1, "icon": "clock", "name": "작업 실행기", "role": "예약 작업을 워커로", "ns": "app.jobs", "lane": "req", "via": ["trig.schedule"] },
+    { "id": "config", "c": 2, "r": 0, "icon": "config", "name": "모델 설정", "role": "agent/MODELS.md", "ns": "config.models", "lane": "worker", "via": ["worker"] },
+    { "id": "worker", "c": 2, "r": 1, "icon": "brain", "name": "워커 (LLM)", "role": "생각하고 도구를 고름", "ns": "worker.llm", "lane": "worker", "match": { "kind": "^(llm|check)$" } },
+    { "id": "guard", "c": 3, "r": 1, "icon": "gate", "name": "권한 가드", "role": "허용한 도구만 통과", "ns": "gate.tools", "lane": "worker", "via": ["worker"] },
+    { "id": "builtin", "c": 4, "r": 1, "icon": "block", "name": "기타 내장 도구", "role": "파일·셸 · 막혀 있어야 정상", "ns": "worker.builtin", "lane": "worker", "match": { "kind": "tool", "name": "^(Bash|Write|Edit|Read|Glob|Grep|NotebookEdit)$" } },
+    { "id": "out", "c": 5, "r": 0, "icon": "send", "name": "응답 발송", "role": "답장 · 알림", "ns": "out.reply", "lane": "out", "match": { "kind": "output" } },
+    { "id": "lf", "c": 5, "r": 1, "icon": "chart", "name": "Langfuse", "role": "실행 기록 보관 (선택)", "ns": "obs.langfuse", "lane": "out", "special": "langfuse" },
+    { "id": "mcp", "c": 1, "r": 2, "icon": "plug", "name": "도구 서버 (MCP)", "role": "에이전트 전용 도구", "ns": "mcp.server", "lane": "worker", "via": ["t.read", "t.write"] },
+    { "id": "t.read", "c": 2, "r": 2, "icon": "read", "name": "데이터 조회", "role": "DB · 문서 · 기억 읽기", "ns": "mcp.read", "lane": "read", "match": { "kind": "tool", "name": "^mcp__.+__(get|list|search|query|read|find|coverage)" } },
+    { "id": "t.web", "c": 3, "r": 2, "icon": "web", "name": "웹 검색 · 읽기", "role": "WebSearch · WebFetch", "ns": "web", "lane": "web", "match": { "kind": "tool", "name": "^Web(Search|Fetch)$" } },
+    { "id": "t.write", "c": 2, "r": 3, "icon": "write", "name": "기억 · 결과 저장", "role": "save · add · set · update", "ns": "mcp.write", "lane": "write", "match": { "kind": "tool", "name": "^mcp__.+__(save|add|set|update|create|delete|retire|propose)" } },
+    { "id": "rules", "c": 3, "r": 3, "icon": "gate", "name": "규칙 검사", "role": "저장 전 검증 · violations", "ns": "gate.rules", "lane": "write", "via": ["t.write"] },
+    { "id": "t.other", "c": 4, "r": 3, "icon": "plug", "name": "기타 도구", "role": "위에 안 잡힌 도구", "ns": "tool.other", "lane": "worker", "match": { "kind": "tool" } },
+    { "id": "store", "c": 2, "r": 4, "icon": "db", "name": "저장소", "role": "DB · 인덱스", "ns": "store", "lane": "write", "via": ["t.read", "t.write"] }
+  ],
+  "groups": [
+    { "label": "도구", "c0": 2, "c1": 4, "r0": 2, "r1": 3 }
+  ],
+  "edges": [
+    ["trig.user", "app", "요청", "R"],
+    ["trig.schedule", "jobs", "cron", "R"],
+    ["app", "worker", "prompt", "D", 0.5, 0.2],
+    ["jobs", "worker", "prompt", "R"],
+    ["config", "worker", "모델", "D", 0.6, 0.6],
+    ["app", "out", "응답", "T", 0.5, 0.5],
+    ["worker", "guard", "도구 호출", "R"],
+    ["guard", "builtin", "차단", "R"],
+    ["worker", "mcp", "MCP", "D", 0.3, 0.5],
+    ["worker", "t.web", "web", "D", 0.8, 0.5],
+    ["mcp", "t.read", "read", "R"],
+    ["mcp", "t.write", "write", "L", 0.5],
+    ["t.write", "rules", "검사", "R"],
+    ["t.write", "store", "", "D", 0.5, 0.5],
+    ["worker", "lf", "trace", "U", 0.9, 0.5, "lf"]
+  ]
+}

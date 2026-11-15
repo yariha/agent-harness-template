@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>에이전트 흐름</title>
+<link rel="stylesheet" href="/static/viewer.css">
+</head>
+<body class="flow" data-view="topo">
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.5 12h4l5-5M11.5 12l5 5"/></svg></span>
+    <div><div class="brand-name">에이전트 흐름</div><div class="muted small">실행 하나를 단계별로 · 오류가 난 곳을 바로 보여줘요</div></div>
+  </div>
+  <nav class="tabs" aria-label="주요 화면">
+    <a href="/" class="tab active">에이전트 흐름</a>
+    <a href="/usage" class="tab">스킬·도구·비용</a>
+  </nav>
+</header>
+
+<main class="flow-layout">
+  <aside class="card runs" aria-labelledby="runs-h">
+    <div class="row-between"><h2 id="runs-h">최근 실행</h2></div>
+    <div class="filters" role="group" aria-label="실행 필터">
+      <button type="button" class="chip" data-status="" aria-pressed="true">전체</button>
+      <button type="button" class="chip" data-status="error" aria-pressed="false">오류만</button>
+    </div>
+    <ol class="run-list" id="runs"></ol>
+  </aside>
+
+  <section class="card graph-card" aria-labelledby="graph-h">
+    <div class="row-between">
+      <h2 id="graph-h">실행을 고르세요</h2>
+      <div class="viewtabs" role="tablist" aria-label="보기 방식">
+        <button type="button" role="tab" id="tab-topo" aria-selected="true">토폴로지</button>
+        <button type="button" role="tab" id="tab-seq" aria-selected="false">순서도</button>
+      </div>
+    </div>
+    <span class="muted small" id="graph-sub"></span>
+    <div class="topo-only topo-wrap">
+      <div class="topo-canvas" id="topo-canvas" aria-label="에이전트 구성도. 끌어서 이동, 버튼으로 확대·축소"></div>
+      <div class="topo-ctrl" role="group" aria-label="보기 조절">
+        <button type="button" id="topo-in" aria-label="확대">+</button>
+        <button type="button" id="topo-out" aria-label="축소">−</button>
+        <button type="button" id="topo-fit" aria-label="화면에 맞추기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div class="topo-only topo-strip" id="topo-strip"></div>
+    <div class="phases seq-only" id="phases" aria-label="실행 요약"></div>
+    <div id="cause" class="cause" hidden></div>
+    <div class="graph seq-only" id="graph" aria-label="단계 순서도. 위에서 아래로 일어난 순서. 화살표 키로 이동"></div>
+    <div class="scrubber seq-only" role="group" aria-label="단계 이동">
+      <button type="button" class="nav-btn" id="prev" aria-label="이전 단계">↑ 이전</button>
+      <span class="muted small grow">위에서 아래로 일어난 순서 · 같은 도구 연속 호출은 한 줄(×횟수) · <span class="write-key">파란 줄</span>은 저장한 단계 · 빨간 칸은 오류</span>
+      <button type="button" class="nav-btn" id="next" aria-label="다음 단계">다음 ↓</button>
+    </div>
+  </section>
+
+  <aside class="card inspector" aria-live="polite" id="inspector">
+    <p class="muted">위에서 실행을 고르면 단계별 입력·결과·오류가 여기에 보여요.</p>
+  </aside>
+</main>
+<script type="module" src="/static/flow.js"></script>
+</body>
+</html>

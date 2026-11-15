@@ -21,4 +21,5 @@
 - 에이전트가 배운 것은 `agent/`나 `knowledge/`에 직접 쓰지 않고 `evolution/proposals/`에 제안으로 남긴다.
 
 ## 실행 기록
-- 실행 기록은 `traces/`에 남긴다 (git 제외). 실패 사례로 등록할 표본만 `ops/issues/`에 요약해 옮긴다.
+- 실행 기록은 `traces/`에 남긴다 (git 제외, 형식 `observability/TRACE_FORMAT.md`). 실패 사례로 등록할 표본만 `ops/issues/`에 요약해 옮긴다.
+- 실행에 지금 운영 중인 Change Record ID를 붙인다(`AGENT_CHANGE`). 변경 전후 실행을 나눠 볼 수 있다.

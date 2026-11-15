@@ -315,6 +315,8 @@ description: Eval Suite를 실행하고 Baseline과 비교할 때 사용한다. 
 node_modules/
 traces/*
 !traces/.gitkeep
+.env
+deploy/langfuse/.env
 ~~~~~
 
 ~~~~~file path=agent/INDEX.md
@@ -341,7 +343,8 @@ traces/*
 - 에이전트가 배운 것은 `agent/`나 `knowledge/`에 직접 쓰지 않고 `evolution/proposals/`에 제안으로 남긴다.
 
 ## 실행 기록
-- 실행 기록은 `traces/`에 남긴다 (git 제외). 실패 사례로 등록할 표본만 `ops/issues/`에 요약해 옮긴다.
+- 실행 기록은 `traces/`에 남긴다 (git 제외, 형식 `observability/TRACE_FORMAT.md`). 실패 사례로 등록할 표본만 `ops/issues/`에 요약해 옮긴다.
+- 실행에 지금 운영 중인 Change Record ID를 붙인다(`AGENT_CHANGE`). 변경 전후 실행을 나눠 볼 수 있다.
 ~~~~~
 
 ~~~~~file path=agent/MODELS.md
@@ -786,6 +789,7 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 
 ## Core Flows
 - 런타임: 요청 → 목적 파악 → 조회 계획 → DB/RAG 조회 → 분석 → 답변 → Trace. <단계별 담당 파일>
+- 관측: 실행마다 `traces/<id>.json`(trigger·llm·tool·output span) → 뷰어(흐름·비용) → (선택) Langfuse. 형식은 `observability/TRACE_FORMAT.md`
 - 지식: Capture → Distill → Validate → Promote → Serve → Maintain
 - 변경: Signal → Eval Case → Change Record → Eval Gate → 채택/기각 → Distill
 - <프로젝트 고유 흐름 1~2개>
@@ -803,6 +807,7 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 | 모델 배분 | [../agent/MODELS.md](../agent/MODELS.md) |
 | Knowledge Base | [../knowledge/INDEX.md](../knowledge/INDEX.md) |
 | Eval Suite | [../evals/INDEX.md](../evals/INDEX.md) |
+| 실행 기록·LLMOps | [../observability/INDEX.md](../observability/INDEX.md) |
 | Workflow tools | [tools/INDEX.md](./tools/INDEX.md) |
 ~~~~~
 
@@ -824,6 +829,7 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 ## 테스트 실행 규칙
 - <동시 워크트리 수와 테스트 러너 제약을 적는다. 예: 단위 테스트는 워커 2개 이하, 평가는 smoke 세트를 먼저 돌린다>
 - 하네스 무결성은 `node ci/check-harness.mjs`, 평가 게이트는 `node ci/eval-gate.mjs`로 확인한다.
+- 실행 기록 도구는 `node --test observability/test/`로 확인한다. Langfuse 키가 없어도 통과해야 한다.
 
 ## Source Map
 | 영역 | 코드 |
@@ -831,7 +837,8 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 | 에이전트(진화 대상) | `agent/` |
 | Knowledge Base | `knowledge/` |
 | 평가 | `evals/` |
-| 변경 추적·자가 개선 | `ops/`, `evolution/`, `traces/` |
+| 변경 추적·자가 개선 | `ops/`, `evolution/` |
+| 실행 기록·흐름 보기·비용 (LLMOps) | `observability/`, `traces/` |
 | <응용 코드 영역(에이전트를 부르는 서비스·CLI). 없으면 이 행 삭제> | `<경로>` |
 | 게이트 | `ci/` |
 | 작업 산출물 | `artifacts/*` |
@@ -856,6 +863,7 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 | AgentOps (지식·평가·변경 방법론) | [agentops/INDEX.md](./agentops/INDEX.md) |
 | 구조 수정 가이드 | [adaptation/INDEX.md](./adaptation/INDEX.md) |
 | 에이전트 구성·모델 배분 | [../agent/INDEX.md](../agent/INDEX.md) |
+| 실행 기록·흐름 보기·비용·Langfuse(선택) | [../observability/INDEX.md](../observability/INDEX.md) |
 | Workflow Tools | [tools/INDEX.md](./tools/INDEX.md) |
 ~~~~~
 
@@ -982,7 +990,8 @@ test('Baseline이 비어 있으면 CLI는 측정 전으로 통과시킨다', { s
 | --- | --- | --- |
 | 평가 비용·시간이 크다 | 변경마다 전체 평가를 돌리기 어렵다 | 빠른 세트(smoke)와 전체 세트(full)로 나눈다. 변경마다 smoke, 채택 직전과 정기적으로 full을 돌린다. Change Record의 `eval_suite`에 어느 세트였는지 적는다. |
 | 기반 모델을 교체한다 | 모든 점수의 기준이 바뀐다 | 모델 교체 자체를 Change Record로 남기고 전체 평가 후 Baseline을 다시 잡는다. 이전 모델용 보정 지식·규칙이 아직 필요한지 `prune-harness`로 점검한다. |
-| 외부 LLMOps 도구를 도입한다 | 트레이스·평가 결과가 도구로 옮겨간다 | `traces/`와 `evals/results/`를 도구로 옮기되 Change Record ID를 실행 태그로 붙여 연결을 유지한다. Change Registry와 Knowledge Base는 저장소에 남긴다. |
+| 외부 LLMOps 도구를 도입한다 | 트레이스를 도구에서도 본다 | 기본 경로는 Langfuse(`observability/LANGFUSE.md`): 원본은 `traces/`에 두고 OTLP로 사본을 보낸다. 다른 도구도 OTLP를 받으면 `lib/otlp.mjs`를 그대로 쓴다. Change Record ID를 실행 태그로 붙여 연결을 유지한다. Change Registry와 Knowledge Base는 저장소에 남긴다. |
+| LLMOps 도구를 쓰지 않는다 | 없음 | Langfuse 키를 비워 둔다. 기록·뷰어·비용 내역은 로컬만으로 동작한다. |
 | 팀이 커진다 | 동시에 여러 변경이 진행된다 | 변경 하나에 가설 하나 원칙을 강제한다. KI와 Eval Case에 담당자 필드를 추가한다. Change Record ID 충돌을 막기 위해 번호를 브랜치 병합 시점에 확정한다. |
 
 ## 여기 없는 상황이면
@@ -1115,7 +1124,8 @@ ISS-0017 ──eval_case──▶ R-0021 ──(CHG.trigger)──▶ CHG-0031 �
 | ADR | 구조·방식을 왜 그렇게 정했는지 남긴 결정 기록 | 회의 결정 사항 |
 | Rejected Experiment | 시도했지만 효과가 없어 기각한 변경 | "해 봤는데 안 됐음" 메모 |
 | Self-Improvement Proposal | 에이전트가 실행 중 배운 것을 반영하자고 올린 제안 | 신입의 업무 개선 제안서 |
-| Trace | 에이전트 실행 한 번의 기록 | 풀이 과정 |
+| Trace | 에이전트 실행 한 번의 기록. `traces/<id>.json` | 풀이 과정 |
+| Span | Trace 안의 한 단계(요청·모델 호출·도구 호출·응답) | 풀이의 한 줄 |
 | Traceability | Issue → Eval Case → Change Record → KI를 서로 따라갈 수 있는 성질 | 영수증처럼 근거를 거슬러 올라갈 수 있음 |
 ~~~~~
 
@@ -1152,6 +1162,7 @@ ISS-0017 ──eval_case──▶ R-0021 ──(CHG.trigger)──▶ CHG-0031 �
 - `evals/INDEX.md`: Eval Case 형식, 러너 계약, Baseline
 - `ops/changes/REGISTRY.md`: 변경 한 줄 요약표
 - `ci/check-harness.mjs`, `ci/eval-gate.mjs`: 불변 원칙을 기계로 확인
+- `observability/INDEX.md`: 실행 기록(Trace), 흐름·비용 화면, Langfuse(선택). 실패 신호가 Issue로 들어오는 입구
 
 ## Reference Map
 | 작업 범위 | 추가 참조 |
@@ -1159,6 +1170,7 @@ ISS-0017 ──eval_case──▶ R-0021 ──(CHG.trigger)──▶ CHG-0031 �
 | KI가 쌓이고 관리되는 방식 | [KNOWLEDGE_LIFECYCLE.md](./KNOWLEDGE_LIFECYCLE.md) |
 | 변경 한 건이 지나는 경로 | [CHANGE_LOOP.md](./CHANGE_LOOP.md) |
 | 분석 케이스로 지식 베이스를 처음 채우기 | [BOOTSTRAPPING.md](./BOOTSTRAPPING.md) |
+| 실행 기록·비용 보기 | [../../observability/INDEX.md](../../observability/INDEX.md) |
 | 용어 해설 | [GLOSSARY.md](./GLOSSARY.md) |
 | 시나리오별 구조 수정 | [../adaptation/INDEX.md](../adaptation/INDEX.md) |
 | 절차 스킬 | [../tools/INDEX.md](../tools/INDEX.md) |
@@ -2568,6 +2580,7 @@ Suite별 점수와 건수, Baseline 대비 변화, 실패 케이스 ID, 결과 �
 러너는 스택에 맞게 프로젝트가 만든다. 지켜야 할 것은 출력 형식뿐이다.
 - 실행마다 `results/<run-id>.json`을 쓰고 `results/latest.json`을 갱신한다.
 - 형식: `{"run_id", "change", "measured_at", "suites": {"<suite>": {"score": 0~1, "n": 건수, "failed": ["<ID>"]}}}`
+- 권장: Suite마다 `cost_usd`(합)와 `avg_turns`를 함께 남긴다. 게이트는 보지 않지만 비용을 바꾸는 변경은 이것으로 판단한다(`observability/COSTS.md`).
 - `baseline.json`도 같은 `suites` 형식이다.
 
 ## Baseline
@@ -3064,6 +3077,1920 @@ superseded_by: null
 ~~~~~
 
 ~~~~~file path=knowledge/raw/transcripts/.gitkeep
+~~~~~
+
+~~~~~file path=observability/COSTS.md
+# 비용 읽는 법 · 줄이는 법
+
+## 나누는 방법
+모델이 알려 준 청구액(`cost_usd`) 하나를 토큰 종류별 상대 가격으로 나눈다(`lib/costs.mjs`).
+합은 항상 청구액과 같고 모델별 가격표를 관리할 필요가 없다. 개별 항목은 추정치다.
+
+| 항목 | 상대 가격(입력=1) | 무엇 |
+| --- | --- | --- |
+| 캐시에 새로 저장 | 1.25 (5분) · 2 (1시간) | 처음 보는 지시문·대화 기록을 캐시에 올림 |
+| 답변·생각 작성 | 5 | 답변, 도구 호출, thinking |
+| 캐시에서 다시 읽기 | 0.1 | 턴마다 앞 내용 전체를 다시 읽음 |
+| 일반 입력 | 1 | 캐시를 안 거친 입력 |
+
+다른 공급자는 `WEIGHT`를 고친다.
+
+## 흔한 원인 (실측)
+- **만료된 대화를 이어받기.** 1시간 캐시가 끝난 뒤 `--resume`하면 대화 기록 전체를 다시 캐시에 쓴다(2배 가격).
+  실측: 77분 뒤 이어받은 실행 $0.89, 이 중 77%가 캐시 쓰기. 새 세션 시작은 약 $0.07.
+  → 마지막 실행 후 캐시 수명(예: 55분)이 지났거나 N번 이어졌으면 새 세션으로 시작하고, 오래 남길 내용은 메모리 도구에 둔다.
+- **턴이 많음.** 도구를 부를 때마다 한 턴이고, 턴마다 앞 내용을 다시 읽는다.
+- **긴 지시문.** 매 세션 시작에 캐시 쓰기로 들어간다.
+
+## 턴 수 ≠ 비용
+턴을 줄이려고 기억 요약을 프롬프트에 미리 붙였더니 턴은 5→2로 줄었지만 비용은 29~51% **늘었다**.
+요약이 필요 이상으로 커서, 아낀 캐시 읽기(0.1배)보다 늘어난 캐시 쓰기(2배)가 컸다.
+→ 비용 최적화는 반드시 **비용**으로 평가한다. 평가 러너가 Suite별 `cost_usd`·`avg_turns`를 남기게 하고(`evals/INDEX.md`), 점수와 함께 본다.
+
+## 줄이는 순서
+1. 뷰어에서 비싼 실행의 비용 내역을 본다. 가장 큰 항목부터.
+2. 캐시 쓰기가 크면: 세션 이어받기 조건, 지시문 길이, 캐시 수명.
+3. 출력이 크면: effort·thinking, 답 길이 지시.
+4. 캐시 읽기가 크면: 턴 수(불필요한 조회 도구 호출).
+5. `agent/` 변경이면 Change Record와 전후 평가(점수 + 비용). 실패한 시도도 `knowledge/dev/rejected/`에 남긴다.
+~~~~~
+
+~~~~~file path=observability/INDEX.md
+# observability/ — 실행 기록·흐름 보기·비용 (LLMOps)
+
+> 에이전트가 한 번 실행될 때 무엇을 했는지 단계별로 남기고, 화면으로 보고, 비용이 어디서 나왔는지 설명한다.
+> 기록의 원본은 저장소 안 `traces/`(git 제외)다. Langfuse는 **권장하지만 선택**이다. 키가 없으면 모든 기능이 로컬만으로 동작한다.
+
+## 구성
+| 파일 | 하는 일 |
+| --- | --- |
+| `lib/trace.mjs` | Trace·span 작성기(Node 참조 구현), `claude -p` stream-json 해석·기록 |
+| `lib/costs.mjs` | 청구액을 토큰 종류(캐시 쓰기·출력·캐시 읽기·입력)로 나눔 |
+| `lib/otlp.mjs`, `lib/langfuse.mjs` | 로컬 trace → OTLP JSON → Langfuse(선택) |
+| `lib/store.mjs`, `lib/usage.mjs`, `lib/topology.mjs` | 읽기·집계·구성도 매핑. 뷰어와 테스트가 같이 쓴다 |
+| `viewer/` | 의존성 없는 웹 뷰어: 에이전트 흐름(토폴로지·순서도·단계 상세·비용 내역), 스킬·도구·비용 |
+| `topology.json` | 에이전트 구성도. **프로젝트에 맞게 고친다** |
+| `export-langfuse.mjs` | 미전송 trace를 Langfuse로. 키가 없으면 아무것도 안 함 |
+| `demo.mjs` | 예시 기록 2개(정상·실패) 생성 |
+
+## 쓰는 법
+```bash
+node observability/demo.mjs /tmp/demo-traces                     # 예시 기록
+TRACES_DIR=/tmp/demo-traces node observability/viewer/server.mjs  # http://127.0.0.1:8790
+node observability/export-langfuse.mjs                            # (선택) Langfuse로 보내기
+node --test observability/test/                                   # 테스트
+```
+
+## 원칙
+- 기록은 에이전트를 멈추게 하지 않는다. 쓰기·전송 실패는 경고만 남긴다.
+- 원본은 로컬. Langfuse는 사본이다. 꺼져 있으면 미전송으로 남았다가 다음 전송 때 간다.
+- 실행에 지금 운영 중인 Change Record ID(`AGENT_CHANGE`)를 붙여 변경과 실행을 잇는다.
+- 사용자 식별자(채팅 id 등)는 외부로 보내지 않는다. 비밀값은 루트 `.env`에서만 읽는다.
+- 뷰어는 읽기 전용이고 기본으로 `127.0.0.1`에만 열린다.
+- 비용 판단은 턴 수가 아니라 비용 내역으로 한다(`COSTS.md`).
+
+## 다른 언어로 된 에이전트
+`TRACE_FORMAT.md`의 JSON만 `traces/<id>.json`으로 쓰면 뷰어·집계·Langfuse 전송이 그대로 동작한다. DB에 쌓는다면 `lib/store.mjs`와 같은 모양으로 돌려주는 API만 맞춘다.
+
+## Reference Map
+| 작업 범위 | 추가 참조 |
+| --- | --- |
+| 기록 형식(언어 무관 계약) | [TRACE_FORMAT.md](./TRACE_FORMAT.md) |
+| 화면·구성도 고치기·원격 접속 | [VIEWER.md](./VIEWER.md) |
+| Langfuse 설치·연결(선택) | [LANGFUSE.md](./LANGFUSE.md) |
+| 비용 읽는 법·줄이는 법 | [COSTS.md](./COSTS.md) |
+| 변경과 실행 연결 | [../docs/agentops/CHANGE_LOOP.md](../docs/agentops/CHANGE_LOOP.md) |
+~~~~~
+
+~~~~~file path=observability/LANGFUSE.md
+# Langfuse (권장, 선택)
+
+> 로컬 뷰어로 충분하면 이 문서는 건너뛴다. Langfuse를 붙이면 같은 기록을 더 자세히 보고(트리·타임라인·필터),
+> 실행에 점수·주석을 달고, 기간별 비용·지연을 집계할 수 있다. 원본은 계속 로컬 `traces/`다.
+
+## 켜는 법
+루트 `.env`(git 제외)에 넣는다. 셋 중 하나라도 없으면 꺼진 상태다.
+```
+LANGFUSE_HOST=http://localhost:3000
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_PROJECT_ID=<프로젝트 id>   # 선택. 있으면 뷰어에서 trace별 링크가 열린다
+OTEL_SERVICE_NAME=<서비스 이름>       # 선택
+```
+- 보내기: trace가 끝날 때 `Tracer({ onEnd: (id) => exporter.export(id) })`, 그리고 몇 분마다 `exporter.flush()`.
+  데몬이 없으면 `node observability/export-langfuse.mjs`를 cron으로.
+- 키를 지우면 바로 꺼진다. 코드를 바꿀 필요가 없다.
+
+## 직접 설치 (자체 호스팅, 권장)
+기록에 사용자 대화가 들어가므로 클라우드보다 자체 호스팅을 권한다.
+1. 공식 `docker-compose.yml`을 받아 `deploy/langfuse/`에 둔다(Langfuse 저장소의 최신 파일).
+2. **모든 포트를 `127.0.0.1`에만** 열도록 고친다(`"3000:3000"` → `"127.0.0.1:3000:3000"`, DB·ClickHouse·Redis·MinIO 포함).
+3. compose 파일의 `# CHANGEME` 값을 `openssl rand -hex 32` 등으로 바꿔 `deploy/langfuse/.env`(git 제외)에 둔다.
+4. `LANGFUSE_INIT_*` 값으로 조직·프로젝트·사용자·API 키를 처음부터 만들어 두면 웹에서 가입할 필요가 없다.
+5. `docker compose -p langfuse up -d` → `http://localhost:3000`.
+
+## 알아 둘 것 (실제로 겪은 문제)
+- **v4는 OpenTelemetry로만 받는다.** `POST /api/public/otel/v1/traces`. 예전 `/api/public/ingestion`·trace 조회 API는 거부된다(`events_only`). 조회는 `/api/public/v2/observations?traceId=…`.
+- **비용은 직접 보내야 맞는다.** 입력·출력 토큰만 보내면 Langfuse가 자기 가격표로 다시 계산해 캐시 토큰을 빼먹는다. 실제로 $0.44 실행이 $0.065로 보였다. `lib/otlp.mjs`는 `cost_details.total`(청구액)과 캐시 토큰이 든 `usage_details`를 함께 보낸다.
+- **같은 trace를 다시 보내면 덮어쓰지 않고 한 벌 더 생긴다.** 재전송은 피하고, 고친 내용은 새 실행부터 반영된다고 본다.
+- **로그인 계정이 다르면 다른 서버다.** 자체 호스팅은 `LANGFUSE_INIT_USER_*` 계정으로 들어간다. 구글 로그인이 됐다면 Langfuse Cloud에 들어간 것이다.
+- Docker가 꺼져 있으면 trace는 미전송으로 남았다가 다시 켜진 뒤 flush 때 간다.
+
+## 오류 분석 순서
+1. 로컬 뷰어 "오류만" → 첫 오류 단계(빨간 노드)와 메시지.
+2. 도구 오류면 입력을 보고, 같은 입력으로 도구를 단독 재현한다.
+3. 반복되는 실패면 `ops/issues/`에 Issue로, 재현 케이스는 Eval Case로(`case-from-ki`). 고치기 전에 등록한다.
+4. Langfuse에서는 `tags`(trigger·status·Change Record ID)로 걸러 변경 전후를 비교한다.
+~~~~~
+
+~~~~~file path=observability/TRACE_FORMAT.md
+# Trace 형식 (언어 무관 계약)
+
+> trace 하나 = 에이전트 실행 한 번(요청 하나, 예약 작업 하나) = `traces/<trace.id>.json` 파일 하나.
+> 어떤 언어로 써도 이 모양이면 뷰어·집계·Langfuse 전송이 동작한다. 원자적으로 쓴다(임시 파일 → rename).
+
+## 파일
+```json
+{
+  "trace": { "id": "32자리 hex", "name": "chat", "trigger": "user|schedule|…", "change": "CHG-0007",
+             "input": "…", "output": null, "error": null, "status": "running|ok|warn|error",
+             "started_at": "ISO-8601 UTC", "ended_at": null, "exported": false },
+  "spans": [
+    { "id": "16자리 hex", "parent_id": null, "seq": 1, "kind": "trigger", "name": "사용자 메시지",
+      "status": "ok", "input": "…", "output": null, "error": null, "meta": {},
+      "started_at": "…", "ended_at": "…" }
+  ]
+}
+```
+- id는 OpenTelemetry 모양(trace 32 hex, span 16 hex). 같은 id로 Langfuse 링크가 열린다.
+- `input`·`output`·`error`는 문자열, 4000자에서 자른다. 객체는 JSON 문자열로.
+- `seq`는 trace 안에서 1부터 일어난 순서. 화면은 이 순서로 그린다.
+- 끝나면 `ended_at`을 채우고 `status`를 span 중 가장 나쁜 값으로(error > warn > ok). 예외로 끝났으면 `error`.
+
+## span 종류 (`kind`)
+| kind | 언제 | meta |
+| --- | --- | --- |
+| `trigger` | 실행을 시작시킨 것(메시지·버튼·cron) | |
+| `llm` | 모델 호출 한 번(`claude -p` 한 번 = span 하나) | `model`, `effort`, `cost_usd`, `turns`, `usage`, `resumed`, `duration_ms`, `session_id` |
+| `tool` | 모델이 부른 도구 한 번. `parent_id` = 그 llm span | |
+| `check` | 실행 중 점검 결과(MCP 서버 연결 실패 등) | |
+| `output` | 사용자에게 보낸 것 | `delivered` 등 |
+| `error` | 처리하지 못한 예외 | |
+
+## 오류로 볼 것
+- 도구 결과의 `is_error`. Claude Code는 `<tool_use_error>…</tool_use_error>`로 감싼다(태그는 벗긴다).
+- 정상 응답 안의 실패: `{"error": …}`, `{"saved": false, "violations": […]}`. 규칙은 `lib/trace.mjs`의 `payloadError`에서 프로젝트에 맞게 고친다.
+- 막아 둔 도구를 부른 것(`No such tool available: Write`). 권한 설정이 의도대로인지 보여 주는 신호다.
+- 도구 오류가 있으면 모델 답이 정상이어도 trace는 `error`다. "답은 했지만 일은 못 한" 실행을 숨기지 않는다.
+
+## llm span의 `usage`
+Anthropic 형식 그대로 둔다. 비용 내역에 필요하다.
+`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`, `cache_creation.ephemeral_{5m,1h}_input_tokens`, `output_tokens_details.thinking_tokens`.
+`cost_usd`는 모델(Claude Code는 `total_cost_usd`)이 알려 준 값을 그대로 쓴다. 직접 계산하지 않는다.
+
+## 개인정보
+- 사용자 식별자는 trace에 두더라도 `toOtlp`의 `privateKeys`로 외부 전송에서 뺀다(기본 `chat_id`).
+- 비밀값·토큰을 `input`에 넣지 않는다. 필요하면 기록 전에 가린다.
+- `traces/`는 git 제외다. 실패 사례로 남길 표본만 요약해 `ops/issues/`로 옮긴다.
+~~~~~
+
+~~~~~file path=observability/VIEWER.md
+# 뷰어 — 에이전트 흐름 · 스킬·도구·비용
+
+> `node observability/viewer/server.mjs` → `http://127.0.0.1:8790`. 의존성 없음, 읽기 전용(GET만).
+> 설정: `TRACES_DIR`(기본 `traces`), `TRACE_VIEWER_HOST`(기본 `127.0.0.1`), `TRACE_VIEWER_PORT`(기본 8790).
+
+## 화면
+- **에이전트 흐름** (`/`)
+  - 최근 실행 목록. 오류만 보기 필터. 처음엔 가장 최근 오류 실행을 연다.
+  - **토폴로지**: 에이전트 전체를 고정 지도로 그리고, 이번 실행이 쓴 노드에 불을 켠다. 상태는 완료·실패·미사용·꺼짐.
+    노드마다 역할 문구가 항상 보여서 누르지 않아도 무엇을 하는지 알 수 있다. 끌어서 이동, +/−/맞춤 버튼으로 확대.
+    마우스 휠 확대는 일부러 뺐다(페이지 스크롤을 빼앗아 불편).
+  - **순서도**: 열 = 누가(요청·워커·조회·저장·웹·응답), 행 = 언제. 같은 도구 연속 호출은 한 줄(×횟수).
+    위에 단계 요약 줄, 첫 오류 자동 선택, 화살표 키 이동, 휴대폰은 한 열.
+  - **단계 상세**: 입력·결과·오류·모델·토큰·비용. "기록 없음 (경로상 거침)" = 호출 기록은 없지만 앞뒤 단계로 보아 지나간 부분.
+  - **비용 내역**: 아래 띠의 비용 칸을 누르면 토큰 종류별 금액과 "왜 이만큼"(이어받은 대화·턴 수·생각 토큰) 설명.
+  - Langfuse가 연결돼 있으면 같은 실행을 Langfuse에서 여는 링크.
+- **스킬·도구·비용** (`/usage`): 7·30·90일 기준 비용 내역(토큰 종류별·작업별), 보유 스킬과 사용 횟수, 도구별 사용·오류·마지막 사용.
+
+## 구성도 고치기 (`topology.json`)
+- `lanes`: 순서도의 열. `{key, name, desc}`
+- `nodes`: `{id, c, r, icon, name, role, ns, lane, match?, via?, special?}`
+  - `c`·`r`: 격자 칸(열·행). `role`은 노드에 항상 보이는 한 줄 설명이다. 사용자 말로 쓴다.
+  - `match`: span을 이 노드에 붙이는 규칙. `{kind, name, trigger}` 각각 정규식. **위에서부터 처음 맞는 노드**가 가져가므로 넓은 규칙(기타 도구)은 맨 아래에.
+  - `via`: 호출 기록이 따로 없는 단계(권한 가드, 저장소 등). 나열한 노드 중 하나가 쓰였으면 "거침"으로 켠다.
+  - `special: "langfuse"`: Langfuse가 설정돼 있으면 전송 상태, 아니면 "꺼짐".
+  - `icon`: trigger·clock·gate·bot·brain·config·plug·read·write·web·db·send·chart·block
+- `groups`: 노드 묶음 상자 `{label, c0, c1, r0, r1}`
+- `edges`: `[from, to, label, mode, ax, bx, onIf]`. 선은 칸 사이 틈으로만 지나간다.
+  - mode `R` 오른쪽→왼쪽(같은 행) · `D` 아래→다음 행 위 · `L` 아래로 내려가 왼쪽 옆으로 · `T` 위쪽 틈으로 넘어감 · `U` 아래쪽 틈으로 돌아 아래에서 들어감
+  - `ax`·`bx`: 출발·도착 노드 폭에서의 위치(0~1). `onIf`: 이 노드가 쓰였을 때만 선을 켠다.
+- 고친 뒤 `node --test observability/test/`로 모든 선의 노드가 있는지 확인한다.
+
+## 원격 접속 (휴대폰 등)
+뷰어는 `127.0.0.1`에만 연다. 공유기·공개 인터넷에 열지 않는다. 다른 기기에서 볼 때는 사설망 터널을 쓴다.
+```bash
+tailscale serve --bg --https=8790 http://127.0.0.1:8790   # 끄기: tailscale serve --https=8790 off
+```
+`TRACE_VIEWER_HOST=0.0.0.0`은 신뢰하는 망에서만 쓴다. 뷰어에는 로그인이 없다.
+
+## 앱 대시보드에 넣기
+앱에 이미 웹 서버가 있으면 `viewer/`의 html·js·css를 그대로 서빙하고 `/api/*` 다섯 개(`config`·`topology`·`traces`·`traces/:id`·`usage`)만 같은 모양으로 돌려주면 된다. 모양은 `viewer/server.mjs`가 기준이다.
+~~~~~
+
+~~~~~file path=observability/demo.mjs
+// 뷰어를 처음 볼 때 쓰는 예시 기록. 사용: node observability/demo.mjs [dir]  (기본 traces/)
+// 정상 실행 1개(조회·웹·저장)와 저장 규칙 위반으로 실패한 실행 1개를 만든다. 실제 기록과 섞이지 않게 다른 폴더를 권한다.
+import { Tracer } from './lib/trace.mjs';
+
+const dir = process.argv[2] || 'traces';
+const tracer = new Tracer(dir);
+const usage = { input_tokens: 12, output_tokens: 2100, cache_read_input_tokens: 61000, cache_creation_input_tokens: 9000,
+  cache_creation: { ephemeral_1h_input_tokens: 9000, ephemeral_5m_input_tokens: 0 } };
+
+await tracer.run('chat', 'user', '이번 주 보고서 요약해줘', async (t) => {
+  t.span('trigger', '사용자 메시지', { input: '이번 주 보고서 요약해줘' });
+  const llm = t.span('llm', 'claude -p', { output: '요약했어요.', meta: { model: 'claude-opus-5-5', effort: 'low', cost_usd: 0.21, turns: 6, usage, duration_ms: 18000 } });
+  t.span('tool', 'mcp__app__get_report', { parent: llm, input: { week: '2026-W46' }, output: '{"rows": 42}' });
+  t.span('tool', 'WebSearch', { parent: llm, input: { query: '업계 주간 동향' }, output: '10 results' });
+  t.span('tool', 'mcp__app__save_summary', { parent: llm, input: { text: '…' }, output: '{"id": 7}' });
+  t.span('output', '답장', { output: '요약했어요.' });
+});
+
+await tracer.run('weekly-job', 'schedule', 'cron: mon 09:00', async (t) => {
+  t.span('trigger', '예약 실행', { input: 'mon 09:00' });
+  const llm = t.span('llm', 'claude -p', { output: '저장하지 못했어요.', meta: { model: 'claude-opus-5-5', effort: 'low', cost_usd: 0.34, turns: 9, resumed: true, usage, duration_ms: 31000 } });
+  t.span('tool', 'mcp__app__list_items', { parent: llm, input: { since: '2026-11-01' }, output: '[...]' });
+  t.span('tool', 'mcp__app__save_items', { parent: llm, status: 'error', input: { items: [] }, error: '규칙 위반: 3~4개여야 함' });
+  t.span('tool', 'Write', { parent: llm, status: 'error', input: { file_path: 'x' }, error: 'No such tool available: Write' });
+}).catch(() => {});
+
+console.log(`demo traces written to ${dir}/`);
+~~~~~
+
+~~~~~file path=observability/export-langfuse.mjs
+// 사용: node observability/export-langfuse.mjs [--limit N]
+// 끝났지만 아직 보내지 않은 trace를 Langfuse로 보낸다. 키가 없으면 아무것도 하지 않고 성공으로 끝난다(선택 기능).
+// 데몬이 있다면 trace가 끝날 때(Tracer onEnd)와 몇 분마다 LangfuseExporter.flush()를 부르는 편이 낫다.
+import { loadConfig } from './lib/config.mjs';
+import { LangfuseExporter } from './lib/langfuse.mjs';
+import { TraceStore } from './lib/store.mjs';
+
+const i = process.argv.indexOf('--limit');
+const limit = i > 0 ? Number(process.argv[i + 1]) : 200;
+const cfg = loadConfig();
+if (!cfg.langfuse) {
+  console.log('Langfuse 미설정(LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY 없음): 기록은 traces/에만 남는다.');
+  process.exit(0);
+}
+const store = new TraceStore(cfg.tracesDir);
+const sent = await new LangfuseExporter(cfg.langfuse, store, { serviceName: cfg.serviceName }).flush(limit);
+const left = store.unexported(100000).length;
+console.log(`sent ${sent}, unexported ${left}`);
+process.exit(left && !sent ? 1 : 0);
+~~~~~
+
+~~~~~file path=observability/lib/config.mjs
+// 설정은 환경변수 또는 루트 .env에서만 읽는다(비밀값을 코드·문서에 두지 않는다).
+// Langfuse 키가 없으면 langfuse = null: 기록은 traces/에만 남고 모든 화면이 그대로 동작한다.
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+
+export function readDotenv(file) {
+  const out = {};
+  if (!existsSync(file)) return out;
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m) out[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+  }
+  return out;
+}
+
+export function loadConfig(root = process.cwd(), env = process.env) {
+  const e = { ...readDotenv(path.join(root, '.env')), ...env };
+  const host = (e.LANGFUSE_HOST || '').replace(/\/+$/, '');
+  const langfuse = host && e.LANGFUSE_PUBLIC_KEY && e.LANGFUSE_SECRET_KEY
+    ? { host, publicKey: e.LANGFUSE_PUBLIC_KEY, secretKey: e.LANGFUSE_SECRET_KEY, projectId: e.LANGFUSE_PROJECT_ID || '' }
+    : null;
+  return {
+    root,
+    tracesDir: path.resolve(root, e.TRACES_DIR || 'traces'),
+    serviceName: e.OTEL_SERVICE_NAME || path.basename(root),
+    viewerHost: e.TRACE_VIEWER_HOST || '127.0.0.1',
+    viewerPort: Number(e.TRACE_VIEWER_PORT || 8790),
+    langfuse,
+  };
+}
+
+/** 프로젝트 id를 알면 trace 상세로, 모르면 Langfuse 홈으로. */
+export function langfuseUrl(lf, traceId) {
+  if (!lf) return null;
+  return lf.projectId ? `${lf.host}/project/${lf.projectId}/traces/${traceId}` : lf.host;
+}
+~~~~~
+
+~~~~~file path=observability/lib/costs.mjs
+// 실행 하나의 비용이 어디서 나왔나.
+// 모델이 알려 준 청구액(cost_usd) 하나를 토큰 종류별 상대 가격으로 나눈다. 합은 항상 청구액과 같고,
+// 모델별 가격표를 여기서 관리하지 않아도 된다. 비율은 Anthropic 기준(입력 = 1). 다른 공급자는 WEIGHT를 고친다.
+export const WEIGHT = { input: 1, output: 5, cache_read: 0.1, cache_write_5m: 1.25, cache_write_1h: 2 };
+
+export const LABEL = {
+  cache_write: ['캐시에 새로 저장', '처음 보는 지시문·대화 기록을 캐시에 올린 비용. 1시간 캐시는 일반 입력의 2배'],
+  output: ['답변·생각 작성', '모델이 쓴 답변, 도구 호출, 생각(thinking) 토큰. 일반 입력의 5배'],
+  cache_read: ['캐시에서 다시 읽기', '도구를 한 번 부를 때마다 앞의 대화 전체를 캐시에서 다시 읽음. 일반 입력의 0.1배'],
+  input: ['일반 입력', '캐시를 거치지 않은 새 입력'],
+};
+
+const int = (v) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : 0);
+
+/** usage: Anthropic 형식 {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_creation:{ephemeral_1h_input_tokens, ephemeral_5m_input_tokens}} */
+export function breakdown(usage, total) {
+  if (!usage || typeof total !== 'number' || !(total > 0)) return [];
+  const cc = usage.cache_creation || {};
+  const wAll = int(usage.cache_creation_input_tokens);
+  let w1h = int(cc.ephemeral_1h_input_tokens), w5m = int(cc.ephemeral_5m_input_tokens);
+  if (w1h + w5m !== wAll) { w1h = 0; w5m = wAll; } // 나눔 정보가 없으면 5분 캐시로 본다
+  const tokens = { input: int(usage.input_tokens), output: int(usage.output_tokens), cache_read: int(usage.cache_read_input_tokens), cache_write: wAll };
+  const units = {
+    input: tokens.input * WEIGHT.input, output: tokens.output * WEIGHT.output, cache_read: tokens.cache_read * WEIGHT.cache_read,
+    cache_write: w1h * WEIGHT.cache_write_1h + w5m * WEIGHT.cache_write_5m,
+  };
+  const sum = Object.values(units).reduce((a, b) => a + b, 0);
+  if (!(sum > 0)) return [];
+  return Object.keys(units).filter((k) => tokens[k])
+    .map((k) => ({ key: k, label: LABEL[k][0], hint: LABEL[k][1], tokens: tokens[k], usd: (total * units[k]) / sum, share: units[k] / sum }))
+    .sort((a, b) => b.usd - a.usd);
+}
+
+/** 한 실행의 llm span들을 합친다. 화면의 "왜 이만큼" 설명에 쓰는 turns·resumed·thinking도 함께. */
+export function runCost(llmSpans) {
+  let total = 0, turns = 0, resumed = false, thinking = 0;
+  const parts = {};
+  for (const s of llmSpans) {
+    const m = s.meta || {};
+    if (typeof m.cost_usd !== 'number') continue;
+    total += m.cost_usd;
+    turns += int(m.turns);
+    resumed = resumed || Boolean(m.resumed);
+    thinking += int(m.usage?.output_tokens_details?.thinking_tokens);
+    for (const p of breakdown(m.usage || {}, m.cost_usd)) {
+      const q = (parts[p.key] ||= { ...p, usd: 0, tokens: 0 });
+      q.usd += p.usd; q.tokens += p.tokens;
+    }
+  }
+  const out = Object.values(parts).sort((a, b) => b.usd - a.usd);
+  for (const p of out) p.share = total ? p.usd / total : 0;
+  return { total, parts: out, turns, resumed, thinking_tokens: thinking };
+}
+~~~~~
+
+~~~~~file path=observability/lib/langfuse.mjs
+// 끝난 trace를 Langfuse로 보낸다(선택). 실패하면 trace는 미전송으로 남고 다음 flush가 다시 시도한다.
+import { OTLP_PATH, toOtlp } from './otlp.mjs';
+
+export class LangfuseExporter {
+  constructor(lf, store, { serviceName = 'agent', fetchImpl = globalThis.fetch, timeoutMs = 10000 } = {}) {
+    this.lf = lf;
+    this.store = store;
+    this.serviceName = serviceName;
+    this.fetch = fetchImpl;
+    this.timeoutMs = timeoutMs;
+  }
+
+  async export(id) {
+    const d = this.store.get(id);
+    if (!d?.trace?.ended_at) return false;
+    const auth = Buffer.from(`${this.lf.publicKey}:${this.lf.secretKey}`).toString('base64');
+    try {
+      const r = await this.fetch(this.lf.host + OTLP_PATH, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Basic ${auth}` },
+        body: JSON.stringify(toOtlp(d, { serviceName: this.serviceName })), signal: AbortSignal.timeout(this.timeoutMs),
+      });
+      if (!r.ok) {
+        console.warn(`[langfuse] export ${id} failed: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
+        return false;
+      }
+    } catch (e) {
+      console.warn(`[langfuse] unreachable (${e.name}); will retry`);
+      return false;
+    }
+    this.store.markExported(id);
+    return true;
+  }
+
+  async flush(limit = 20) {
+    let sent = 0;
+    for (const id of this.store.unexported(limit)) {
+      if (!(await this.export(id))) break; // 꺼져 있거나 거부 중이면 나머지는 다음에
+      sent += 1;
+    }
+    return sent;
+  }
+}
+~~~~~
+
+~~~~~file path=observability/lib/otlp.mjs
+// 로컬 trace JSON → OTLP/HTTP JSON (Langfuse v4가 받는 유일한 형식: POST /api/public/otel/v1/traces).
+// 다른 OpenTelemetry 백엔드에도 그대로 보낼 수 있다(langfuse.* 속성은 무시된다).
+export const OTLP_PATH = '/api/public/otel/v1/traces';
+const OBS_TYPE = { llm: 'generation', tool: 'tool' };
+const LEVEL = { error: 'ERROR', warn: 'WARNING' };
+
+const ns = (iso) => (iso ? String(BigInt(Date.parse(iso)) * 1000000n) : '0');
+
+function attrs(pairs) {
+  const out = [];
+  for (const [key, v] of pairs) {
+    if (v == null || v === '') continue;
+    out.push({ key, value: { stringValue: typeof v === 'object' ? JSON.stringify(v) : String(v) } });
+  }
+  return out;
+}
+
+const statusOf = (s, err) => (s === 'error' ? { code: 2, message: err || 'error' } : { code: 1 });
+
+/** privateKeys: 외부로 보내지 않을 trace 필드(예: 채팅방 id). 기본으로 trace.chat_id는 보내지 않는다. */
+export function toOtlp({ trace: tr, spans }, { serviceName = 'agent', privateKeys = ['chat_id'] } = {}) {
+  for (const k of privateKeys) if (k in tr) tr = { ...tr, [k]: undefined };
+  const rootId = tr.id.slice(0, 16);
+  const out = [{
+    traceId: tr.id, spanId: rootId, name: tr.name, kind: 1,
+    startTimeUnixNano: ns(tr.started_at), endTimeUnixNano: ns(tr.ended_at || tr.started_at),
+    attributes: attrs([
+      ['langfuse.trace.name', tr.name], ['langfuse.trace.input', tr.input], ['langfuse.trace.output', tr.output],
+      ['langfuse.trace.tags', JSON.stringify([tr.trigger, tr.status, tr.change].filter(Boolean))], ['langfuse.trace.metadata.trigger', tr.trigger],
+      ['langfuse.trace.metadata.change', tr.change], ['langfuse.release', tr.change],
+      ['langfuse.observation.type', 'span'], ['langfuse.observation.level', LEVEL[tr.status]],
+      ['langfuse.observation.status_message', tr.error],
+    ]),
+    status: statusOf(tr.status, tr.error),
+  }];
+  for (const s of spans) {
+    const meta = s.meta || {};
+    const usage = meta.usage || {};
+    const pairs = [
+      ['langfuse.observation.type', OBS_TYPE[s.kind] || 'span'], ['langfuse.observation.input', s.input],
+      ['langfuse.observation.output', s.output], ['langfuse.observation.level', LEVEL[s.status]],
+      ['langfuse.observation.status_message', s.error], ['langfuse.observation.metadata.kind', s.kind],
+      ['langfuse.observation.metadata.step', s.seq],
+    ];
+    if (s.kind === 'llm') {
+      pairs.push(['gen_ai.request.model', meta.model], ['langfuse.observation.model.name', meta.model],
+        ['gen_ai.usage.input_tokens', usage.input_tokens], ['gen_ai.usage.output_tokens', usage.output_tokens],
+        ['langfuse.observation.metadata.effort', meta.effort]);
+      // 명시하지 않으면 Langfuse가 입력·출력 토큰만으로 다시 계산해 캐시 토큰(대개 비용의 대부분)이 빠진다.
+      const details = Object.fromEntries(Object.entries({
+        input: usage.input_tokens, output: usage.output_tokens,
+        cache_read_input_tokens: usage.cache_read_input_tokens, cache_creation_input_tokens: usage.cache_creation_input_tokens,
+      }).filter(([, v]) => Number.isInteger(v)));
+      if (Object.keys(details).length) pairs.push(['langfuse.observation.usage_details', JSON.stringify(details)]);
+      if (typeof meta.cost_usd === 'number') pairs.push(['langfuse.observation.cost_details', JSON.stringify({ total: meta.cost_usd })]);
+    }
+    out.push({
+      traceId: tr.id, spanId: s.id, parentSpanId: s.parent_id || rootId, name: s.name, kind: 1,
+      startTimeUnixNano: ns(s.started_at), endTimeUnixNano: ns(s.ended_at || s.started_at),
+      attributes: attrs(pairs), status: statusOf(s.status, s.error),
+    });
+  }
+  return { resourceSpans: [{ resource: { attributes: attrs([['service.name', serviceName]]) }, scopeSpans: [{ scope: { name: 'harness.trace' }, spans: out }] }] };
+}
+~~~~~
+
+~~~~~file path=observability/lib/store.mjs
+// traces/*.json 읽기·목록·전송 표시. 저장소가 DB여도 이 함수들과 같은 모양만 돌려주면 뷰어가 그대로 동작한다.
+import { readdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
+import path from 'node:path';
+
+const ID = /^[0-9a-f]{32}$/;
+
+export class TraceStore {
+  constructor(dir = 'traces') { this.dir = dir; }
+
+  ids() {
+    if (!existsSync(this.dir)) return [];
+    return readdirSync(this.dir).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).filter((id) => ID.test(id));
+  }
+
+  get(id) {
+    if (!ID.test(id)) return null;
+    try { return JSON.parse(readFileSync(path.join(this.dir, `${id}.json`), 'utf8')); } catch { return null; }
+  }
+
+  /** 최근 순. status: ok|warn|error|running. 목록 행에는 단계 수와 오류·경고 수를 붙인다. */
+  list({ status, limit = 50, since } = {}) {
+    const rows = [];
+    for (const id of this.ids()) {
+      const d = this.get(id);
+      if (!d?.trace) continue;
+      const t = d.trace;
+      if (status && t.status !== status) continue;
+      if (since && t.started_at < since) continue;
+      rows.push({ ...t, span_count: d.spans.length, error_count: d.spans.filter((s) => s.status === 'error').length,
+        warn_count: d.spans.filter((s) => s.status === 'warn').length });
+    }
+    return rows.sort((a, b) => (a.started_at < b.started_at ? 1 : -1)).slice(0, limit);
+  }
+
+  /** since 이후 실행들의 span을 trace 이름(job)과 함께. 사용량·비용 집계용 */
+  spansSince(since) {
+    const out = [];
+    for (const id of this.ids()) {
+      const d = this.get(id);
+      if (!d?.trace || d.trace.started_at < since) continue;
+      for (const s of d.spans) out.push({ ...s, job: d.trace.name });
+    }
+    return out;
+  }
+
+  unexported(limit = 20) {
+    return this.list({ limit: 10000 }).filter((t) => t.ended_at && !t.exported).reverse().slice(0, limit).map((t) => t.id);
+  }
+
+  markExported(id, value = true) {
+    const d = this.get(id);
+    if (!d) return;
+    d.trace.exported = value;
+    const file = path.join(this.dir, `${id}.json`);
+    writeFileSync(`${file}.tmp`, JSON.stringify(d, null, 1));
+    renameSync(`${file}.tmp`, file);
+  }
+}
+~~~~~
+
+~~~~~file path=observability/lib/topology.mjs
+// span → 구성도 노드. 서버(테스트)와 브라우저가 같은 규칙을 쓰도록 순수 함수로 둔다.
+// match: {kind, name, trigger} 각 값은 정규식. 위에서부터 처음 맞는 노드. via: 나열한 노드 중 하나라도 쓰였으면 "거침".
+export function nodeFor(topo, span, trace) {
+  for (const n of topo.nodes) {
+    const m = n.match;
+    if (!m) continue;
+    if (m.kind && !new RegExp(m.kind.startsWith('^') ? m.kind : `^${m.kind}$`).test(span.kind)) continue;
+    if (m.name && !new RegExp(m.name).test(span.name)) continue;
+    if (m.trigger && !new RegExp(m.trigger).test(trace.trigger || '')) continue;
+    return n.id;
+  }
+  return null;
+}
+
+/** 실행 하나를 구성도에 겹친다. st[nodeId] = {status, calls, ms, note}. langfuse: 설정 여부 */
+export function overlay(topo, detail, { langfuse = false } = {}) {
+  const { trace, spans } = detail;
+  const st = {};
+  const hit = (id, s, note) => {
+    const o = (st[id] ||= { status: 'ok', calls: [], ms: 0, note: '' });
+    if (s) {
+      o.calls.push(s);
+      if (s.status === 'error') o.status = 'error';
+      else if (s.status === 'warn' && o.status !== 'error') o.status = 'warn';
+      const d = s.meta?.duration_ms ?? (Date.parse(s.ended_at) - Date.parse(s.started_at));
+      o.ms += Math.max(0, d || 0);
+    }
+    if (note) o.note = note;
+    return o;
+  };
+  for (const s of spans) { const id = nodeFor(topo, s, trace); if (id) hit(id, s); }
+  // via 노드: 앞뒤가 쓰였으면 경로상 거친 것으로 본다. 연쇄될 수 있어 바뀌지 않을 때까지 반복
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const n of topo.nodes) if (n.via && !st[n.id] && n.via.some((v) => st[v])) { hit(n.id, null, ''); changed = true; }
+  }
+  const llm = spans.find((s) => s.kind === 'llm');
+  if (llm && st.config) st.config.note = [llm.meta?.model, llm.meta?.effort].filter(Boolean).join(' · ');
+  const disabled = new Set();
+  for (const n of topo.nodes) {
+    if (n.special !== 'langfuse') continue;
+    if (langfuse) hit(n.id, null, trace.exported ? '전송됨' : '전송 대기'); else disabled.add(n.id);
+  }
+  return { st, disabled };
+}
+
+export function laneFor(topo, span, trace) {
+  const id = nodeFor(topo, span, trace);
+  return topo.nodes.find((n) => n.id === id)?.lane || 'worker';
+}
+~~~~~
+
+~~~~~file path=observability/lib/trace.mjs
+// 실행 기록(Trace) 작성기 — Node 참조 구현. 다른 언어는 TRACE_FORMAT.md 형식만 지키면 된다.
+// trace 하나 = traces/<id>.json 하나. 기록은 에이전트를 절대 멈추게 하지 않는다(쓰기 실패는 경고만).
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, writeFileSync, renameSync } from 'node:fs';
+import path from 'node:path';
+
+export const MAX_TEXT = 4000;
+export const KINDS = ['trigger', 'llm', 'tool', 'check', 'output', 'error'];
+const now = () => new Date().toISOString();
+const hex = (n) => randomBytes(n).toString('hex');
+
+export function clip(v) {
+  if (v == null) return null;
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.length <= MAX_TEXT ? s : `${s.slice(0, MAX_TEXT)}… (+${s.length - MAX_TEXT})`;
+}
+
+/** span 상태 중 가장 나쁜 것: error > warn > ok */
+export function worst(statuses) {
+  return statuses.includes('error') ? 'error' : statuses.includes('warn') ? 'warn' : 'ok';
+}
+
+export class Trace {
+  constructor(dir, name, trigger, input = null, { change = null } = {}) {
+    this.dir = dir;
+    this.data = {
+      trace: { id: hex(16), name, trigger, change, input: clip(input), output: null, error: null, status: 'running',
+        started_at: now(), ended_at: null, exported: false },
+      spans: [],
+    };
+    this.flush();
+  }
+
+  get id() { return this.data.trace.id; }
+
+  /** span을 추가하고 id를 돌려준다. meta: llm이면 {model, effort, usage, cost_usd, turns, resumed, duration_ms} */
+  span(kind, name, { parent = null, status = 'ok', input, output, error, meta = {}, started_at, ended_at } = {}) {
+    if (!KINDS.includes(kind)) throw new Error(`unknown span kind: ${kind}`);
+    const start = started_at || now();
+    const s = { id: hex(8), parent_id: parent, seq: this.data.spans.length + 1, kind, name, status,
+      input: clip(input), output: clip(output), error: clip(error), meta, started_at: start, ended_at: ended_at || start };
+    this.data.spans.push(s);
+    this.flush();
+    return s.id;
+  }
+
+  end({ status, output, error } = {}) {
+    const t = this.data.trace;
+    t.ended_at = now();
+    t.output = clip(output ?? null);
+    t.error = clip(error ?? null);
+    t.status = status || worst(this.data.spans.map((s) => s.status));
+    this.flush();
+  }
+
+  flush() {
+    try {
+      mkdirSync(this.dir, { recursive: true });
+      const file = path.join(this.dir, `${this.id}.json`);
+      writeFileSync(`${file}.tmp`, JSON.stringify(this.data, null, 1));
+      renameSync(`${file}.tmp`, file); // 뷰어가 반쯤 쓴 파일을 읽지 않게
+    } catch (e) {
+      console.warn(`[trace] write failed: ${e.message}`);
+    }
+  }
+}
+
+export class Tracer {
+  /** onEnd(traceId): 예) Langfuse 전송 예약. 실패해도 무시된다.
+   *  change: 지금 운영 중인 agent/ 버전의 Change Record ID(예: CHG-0007). 실행을 변경과 이어 준다. */
+  constructor(dir = 'traces', { onEnd, change = process.env.AGENT_CHANGE || null } = {}) {
+    this.dir = dir;
+    this.onEnd = onEnd;
+    this.change = change;
+  }
+
+  /** fn(trace)를 실행하고 끝나면 trace를 닫는다. 예외는 error span으로 남기고 다시 던진다. */
+  async run(name, trigger, input, fn) {
+    const t = new Trace(this.dir, name, trigger, input, { change: this.change });
+    try {
+      const out = await fn(t);
+      t.end();
+      return out;
+    } catch (e) {
+      t.span('error', e?.name || 'Error', { status: 'error', error: String(e?.message ?? e) });
+      t.end({ status: 'error', error: `${e?.name || 'Error'}: ${e?.message ?? e}` });
+      throw e;
+    } finally {
+      try { await this.onEnd?.(t.id); } catch (e) { console.warn(`[trace] onEnd failed: ${e.message}`); }
+    }
+  }
+}
+
+// ---- Claude Code `claude -p --output-format stream-json --verbose` → 도구 단계 -------------------------------------
+const TAG = /<\/?tool_use_error>/g;
+
+function resultText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map((p) => (p && typeof p === 'object' ? p.text || '' : '')).join('\n');
+  return JSON.stringify(content);
+}
+
+/** 도구가 정상 응답 안에 {"error": ...}로 실패를 알리는 경우도 오류로 본다. 프로젝트 규칙에 맞게 고친다. */
+export function payloadError(text) {
+  let d;
+  try { d = JSON.parse(text); } catch { return null; }
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    if (d.error) return String(d.error);
+    if (d.saved === false && Array.isArray(d.violations) && d.violations.length) return `규칙 위반: ${d.violations.join('; ')}`;
+  }
+  return null;
+}
+
+export function parseClaudeStream(raw) {
+  const r = { text: '', session_id: null, is_error: true, error: null, model: null, cost_usd: null, duration_ms: null,
+    turns: null, usage: {}, mcp: {}, tools: [] };
+  const byId = new Map();
+  let sawResult = false;
+  for (const line of String(raw).split('\n')) {
+    let e;
+    try { e = JSON.parse(line.trim()); } catch { continue; }
+    if (!e || typeof e !== 'object') continue;
+    if (e.type === 'system' && e.subtype === 'init') {
+      r.session_id = e.session_id || r.session_id;
+      r.model = e.model || null;
+      for (const m of e.mcp_servers || []) if (m && m.name) r.mcp[m.name] = m.status;
+    } else if (e.type === 'assistant' || e.type === 'user') {
+      for (const p of e.message?.content || []) {
+        if (!p || typeof p !== 'object') continue;
+        if (p.type === 'tool_use') {
+          const step = { id: p.id || '', name: p.name || '?', input: p.input, output: null, status: 'ok', error: null };
+          byId.set(step.id, step);
+          r.tools.push(step);
+        } else if (p.type === 'tool_result') {
+          const step = byId.get(p.tool_use_id || '');
+          if (!step) continue;
+          const text = resultText(p.content);
+          step.output = text;
+          const perr = payloadError(text);
+          if (p.is_error || perr) { step.status = 'error'; step.error = perr || text.replace(TAG, '').trim(); }
+        }
+      }
+    } else if (e.type === 'result') {
+      sawResult = true;
+      r.text = String(e.result ?? '');
+      r.session_id = e.session_id || r.session_id;
+      r.is_error = Boolean(e.is_error);
+      r.cost_usd = e.total_cost_usd ?? null;
+      r.duration_ms = e.duration_ms ?? null;
+      r.turns = e.num_turns ?? null;
+      r.usage = e.usage || {};
+      if (r.is_error) r.error = r.text;
+    }
+  }
+  if (!sawResult) { r.is_error = true; r.error = r.error || 'no result event'; }
+  return r;
+}
+
+/** parseClaudeStream 결과를 trace에 llm span + 도구 span들로 남긴다. 도구 시각은 llm 구간에 순서대로 펼친다. */
+export function recordClaudeRun(trace, parsed, { prompt, model, effort, resumed = false, started_at, ended_at = now() } = {}) {
+  const start = started_at || ended_at;
+  const llm = trace.span('llm', 'claude -p', {
+    status: parsed.is_error ? 'error' : 'ok', input: prompt, output: parsed.text, error: parsed.is_error ? parsed.error : null,
+    meta: { model: model || parsed.model, effort, resumed, cost_usd: parsed.cost_usd, duration_ms: parsed.duration_ms,
+      turns: parsed.turns, usage: parsed.usage, session_id: parsed.session_id },
+    started_at: start, ended_at,
+  });
+  for (const [name, status] of Object.entries(parsed.mcp)) {
+    if (status !== 'connected') trace.span('check', `MCP 서버 ${name}`, { parent: llm, status: 'error', output: status, error: `MCP 서버 ${name} 상태: ${status}` });
+  }
+  const a = Date.parse(start), b = Math.max(Date.parse(ended_at), a + 1), n = Math.max(parsed.tools.length, 1);
+  parsed.tools.forEach((s, i) => {
+    const at = new Date(a + ((b - a) * (i + 0.1)) / n).toISOString();
+    const to = new Date(a + ((b - a) * (i + 0.9)) / n).toISOString();
+    trace.span('tool', s.name, { parent: llm, status: s.status, input: s.input, output: s.output, error: s.error, started_at: at, ended_at: to });
+  });
+  return llm;
+}
+~~~~~
+
+~~~~~file path=observability/lib/usage.mjs
+// 기간별 사용 현황: 보유 스킬, 도구별 사용·오류 횟수, 작업별 비용. "스킬·도구" 화면의 데이터.
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { runCost } from './costs.mjs';
+
+/** skillDirs 아래 <name>/SKILL.md의 frontmatter name·description */
+export function listSkills(skillDirs) {
+  const out = [];
+  for (const dir of skillDirs) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir).sort()) {
+      const f = path.join(dir, name, 'SKILL.md');
+      if (!existsSync(f)) continue;
+      const fm = readFileSync(f, 'utf8').match(/^---\n([\s\S]*?)\n---/);
+      const kv = Object.fromEntries([...(fm?.[1] || '').matchAll(/^(\w+):\s*(.+)$/gm)].map((m) => [m[1], m[2].trim()]));
+      out.push({ name: kv.name || name, description: kv.description || '', source: path.basename(path.dirname(dir)) + '/' + path.basename(dir) });
+    }
+  }
+  return out;
+}
+
+export function usageReport(store, { days = 30, skillDirs = [], now = Date.now() } = {}) {
+  const since = new Date(now - days * 864e5).toISOString();
+  const spans = store.spansSince(since);
+  const tools = {};
+  for (const s of spans) {
+    if (s.kind !== 'tool') continue;
+    const t = (tools[s.name] ||= { name: s.name, uses: 0, errors: 0, last_used: null });
+    t.uses += 1;
+    t.errors += s.status === 'error' ? 1 : 0;
+    if (!t.last_used || s.started_at > t.last_used) t.last_used = s.started_at;
+  }
+  // Claude Code는 스킬을 "Skill" 도구로 부른다. 입력에 스킬 이름이 들어 있다.
+  const skillCalls = spans.filter((s) => s.kind === 'tool' && s.name === 'Skill');
+  const skills = listSkills(skillDirs).map((k) => ({ ...k, uses: skillCalls.filter((s) => (s.input || '').includes(k.name)).length }));
+  const byJob = {};
+  for (const s of spans) if (s.kind === 'llm') (byJob[s.job] ||= []).push(s);
+  const cost_by_job = Object.entries(byJob).map(([job, ls]) => {
+    const c = runCost(ls);
+    return { job, runs: ls.length, usd: c.total, parts: c.parts };
+  }).sort((a, b) => b.usd - a.usd);
+  return { days, skills, tools: Object.values(tools).sort((a, b) => b.uses - a.uses), cost_by_job };
+}
+~~~~~
+
+~~~~~file path=observability/test/observability.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { breakdown, runCost } from '../lib/costs.mjs';
+import { loadConfig, langfuseUrl } from '../lib/config.mjs';
+import { LangfuseExporter } from '../lib/langfuse.mjs';
+import { toOtlp } from '../lib/otlp.mjs';
+import { TraceStore } from '../lib/store.mjs';
+import { nodeFor, overlay } from '../lib/topology.mjs';
+import { Tracer, parseClaudeStream, recordClaudeRun } from '../lib/trace.mjs';
+import { usageReport } from '../lib/usage.mjs';
+import { createViewer } from '../viewer/server.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const TOPO = JSON.parse(readFileSync(path.join(HERE, '..', 'topology.json'), 'utf8'));
+const tmp = () => mkdtempSync(path.join(tmpdir(), 'obs-'));
+const USAGE = { input_tokens: 12, output_tokens: 3253, cache_read_input_tokens: 72347, cache_creation_input_tokens: 21865,
+  cache_creation: { ephemeral_1h_input_tokens: 21865, ephemeral_5m_input_tokens: 0 } };
+
+async function sampleTrace(dir) {
+  const tracer = new Tracer(dir);
+  let id;
+  await tracer.run('chat', 'user', 'hi', async (t) => {
+    id = t.id;
+    t.span('trigger', '사용자 메시지', { input: 'hi' });
+    const llm = t.span('llm', 'claude -p', { meta: { model: 'm', effort: 'low', cost_usd: 0.4373, usage: USAGE, turns: 13, resumed: true } });
+    t.span('tool', 'mcp__app__get_profile', { parent: llm });
+    t.span('tool', 'WebSearch', { parent: llm, input: { query: 'q' } });
+    t.span('tool', 'Write', { parent: llm, status: 'error', error: 'No such tool available: Write' });
+  });
+  return id;
+}
+
+test('비용 분할의 합은 청구액과 같고, 1시간 캐시 쓰기가 가장 크다', () => {
+  const parts = breakdown(USAGE, 0.4373);
+  assert.ok(Math.abs(parts.reduce((t, p) => t + p.usd, 0) - 0.4373) < 1e-9);
+  assert.deepEqual(parts.map((p) => p.key), ['cache_write', 'output', 'cache_read', 'input']);
+  assert.deepEqual(breakdown({}, 0.1), []);
+  assert.deepEqual(breakdown(USAGE, null), []);
+  const c = runCost([{ meta: { cost_usd: 0.4373, usage: USAGE, turns: 13, resumed: true } }]);
+  assert.equal(c.turns, 13); assert.equal(c.resumed, true); assert.equal(c.parts[0].key, 'cache_write');
+});
+
+test('trace 파일: 끝나면 가장 나쁜 span 상태가 trace 상태가 된다', async () => {
+  const dir = tmp();
+  const id = await sampleTrace(dir);
+  const d = new TraceStore(dir).get(id);
+  assert.equal(d.trace.status, 'error');
+  assert.equal(d.spans.length, 5);
+  assert.equal(d.spans[3].parent_id, d.spans[1].id);
+  assert.ok(d.trace.ended_at);
+});
+
+test('예외는 error span으로 남고 다시 던져진다. onEnd 실패는 무시한다', async () => {
+  const dir = tmp();
+  const tracer = new Tracer(dir, { onEnd: () => { throw new Error('lf down'); } });
+  await assert.rejects(tracer.run('job', 'schedule', null, () => { throw new TypeError('boom'); }), /boom/);
+  const [t] = new TraceStore(dir).list();
+  assert.equal(t.status, 'error');
+  assert.match(t.error, /TypeError: boom/);
+});
+
+test('claude stream-json: 도구 오류와 payload 오류를 잡는다', () => {
+  const raw = [
+    { type: 'system', subtype: 'init', session_id: 'S', model: 'm', mcp_servers: [{ name: 'app', status: 'failed' }] },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'a', name: 'Write', input: {} }, { type: 'tool_use', id: 'b', name: 'mcp__app__save', input: {} }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a', is_error: true, content: '<tool_use_error>No such tool</tool_use_error>' },
+      { type: 'tool_result', tool_use_id: 'b', content: [{ type: 'text', text: '{"saved": false, "violations": ["3~4개"]}' }] }] } },
+    { type: 'result', result: 'ok', session_id: 'S', is_error: false, total_cost_usd: 0.1, num_turns: 3, usage: { output_tokens: 5 } },
+  ].map((e) => JSON.stringify(e)).join('\n');
+  const p = parseClaudeStream(raw);
+  assert.equal(p.is_error, false); assert.equal(p.turns, 3);
+  assert.equal(p.tools[0].error, 'No such tool');
+  assert.match(p.tools[1].error, /규칙 위반: 3~4개/);
+  assert.equal(parseClaudeStream('garbage').error, 'no result event');
+  const dir = tmp();
+  const tracer = new Tracer(dir);
+  return tracer.run('chat', 'user', null, (t) => {
+    recordClaudeRun(t, p, { prompt: 'x', effort: 'low' });
+    const kinds = t.data.spans.map((s) => s.kind);
+    assert.deepEqual(kinds, ['llm', 'check', 'tool', 'tool']);
+    assert.ok(t.data.spans.slice(2).every((s) => s.started_at >= t.data.spans[0].started_at));
+  });
+});
+
+test('OTLP: 비용·캐시 토큰을 명시하고 채팅 id는 보내지 않는다', async () => {
+  const dir = tmp();
+  const id = await sampleTrace(dir);
+  const d = new TraceStore(dir).get(id);
+  d.trace.chat_id = 12345;
+  d.trace.change = 'CHG-0007';
+  const body = toOtlp(d, { serviceName: 'svc' });
+  const spans = body.resourceSpans[0].scopeSpans[0].spans;
+  const attrs = (s) => Object.fromEntries(s.attributes.map((a) => [a.key, a.value.stringValue]));
+  const llm = attrs(spans[2]);
+  assert.equal(llm['langfuse.observation.type'], 'generation');
+  assert.deepEqual(JSON.parse(llm['langfuse.observation.cost_details']), { total: 0.4373 });
+  assert.equal(JSON.parse(llm['langfuse.observation.usage_details']).cache_read_input_tokens, 72347);
+  assert.equal(spans[5].status.code, 2);
+  assert.ok(!JSON.stringify(body).includes('12345'));
+  assert.equal(spans[3].parentSpanId, spans[2].spanId);
+  assert.deepEqual(JSON.parse(attrs(spans[0])['langfuse.trace.tags']), ['user', 'error', 'CHG-0007']);
+});
+
+test('Langfuse 전송: 성공하면 전송됨, 실패하면 다음에 재시도', async () => {
+  const dir = tmp();
+  const id = await sampleTrace(dir);
+  const store = new TraceStore(dir);
+  const lf = { host: 'http://lf', publicKey: 'pk', secretKey: 'sk', projectId: 'p' };
+  const calls = [];
+  const down = new LangfuseExporter(lf, store, { fetchImpl: async () => ({ ok: false, status: 503, text: async () => 'down' }) });
+  assert.equal(await down.flush(), 0);
+  assert.deepEqual(store.unexported(), [id]);
+  const up = new LangfuseExporter(lf, store, { fetchImpl: async (url, init) => { calls.push([url, init]); return { ok: true }; } });
+  assert.equal(await up.flush(), 1);
+  assert.equal(calls[0][0], 'http://lf/api/public/otel/v1/traces');
+  assert.match(calls[0][1].headers.authorization, /^Basic /);
+  assert.deepEqual(store.unexported(), []);
+});
+
+test('Langfuse 키가 없으면 꺼진 상태(null)로 동작한다', () => {
+  const root = tmp();
+  assert.equal(loadConfig(root, {}).langfuse, null);
+  writeFileSync(path.join(root, '.env'), 'LANGFUSE_HOST=http://localhost:3000/\nLANGFUSE_PUBLIC_KEY=pk\nLANGFUSE_SECRET_KEY="sk"\nLANGFUSE_PROJECT_ID=p\n');
+  const lf = loadConfig(root, {}).langfuse;
+  assert.equal(lf.host, 'http://localhost:3000'); assert.equal(lf.secretKey, 'sk');
+  assert.equal(langfuseUrl(lf, 'abc'), 'http://localhost:3000/project/p/traces/abc');
+});
+
+test('구성도: span이 노드에 붙고 via 노드는 경로상 거침, Langfuse는 설정에 따라 꺼짐', async () => {
+  const dir = tmp();
+  const id = await sampleTrace(dir);
+  const d = new TraceStore(dir).get(id);
+  assert.equal(nodeFor(TOPO, { kind: 'tool', name: 'mcp__app__get_profile' }, d.trace), 't.read');
+  assert.equal(nodeFor(TOPO, { kind: 'tool', name: 'Write' }, d.trace), 'builtin');
+  assert.equal(nodeFor(TOPO, { kind: 'trigger', name: 'x' }, { trigger: 'schedule' }), 'trig.schedule');
+  const ov = overlay(TOPO, d, { langfuse: false });
+  assert.equal(ov.st.builtin.status, 'error');
+  assert.ok(ov.st.app && ov.st.mcp && ov.st.store && ov.st.config);
+  assert.equal(ov.st.config.note, 'm · low');
+  assert.ok(ov.disabled.has('lf'));
+  const ids = new Set(TOPO.nodes.map((n) => n.id));
+  for (const [a, b] of TOPO.edges) assert.ok(ids.has(a) && ids.has(b), `edge ${a}->${b}`);
+});
+
+test('사용 현황: 도구별 사용·오류, 작업별 비용, 스킬 목록', async () => {
+  const root = tmp();
+  const dir = path.join(root, 'traces');
+  await sampleTrace(dir);
+  const skills = path.join(root, 'agent', 'skills', 'plan');
+  (await import('node:fs')).mkdirSync(skills, { recursive: true });
+  writeFileSync(path.join(skills, 'SKILL.md'), '---\nname: plan\ndescription: 계획을 짠다\n---\n');
+  const u = usageReport(new TraceStore(dir), { days: 30, skillDirs: [path.join(root, 'agent', 'skills')] });
+  assert.deepEqual(u.skills.map((s) => [s.name, s.uses]), [['plan', 0]]);
+  assert.equal(u.tools.find((t) => t.name === 'Write').errors, 1);
+  assert.equal(u.cost_by_job[0].job, 'chat');
+  assert.ok(Math.abs(u.cost_by_job[0].usd - 0.4373) < 1e-9);
+});
+
+test('뷰어 서버: 목록·상세(비용 포함)·구성도·정적 파일, 쓰기와 경로 조작은 거부', async () => {
+  const root = tmp();
+  const id = await sampleTrace(path.join(root, 'traces'));
+  const srv = createViewer(loadConfig(root, {}));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const list = await (await fetch(`${base}/api/traces`)).json();
+    assert.equal(list[0].id, id); assert.equal(list[0].error_count, 1); assert.equal(list[0].langfuse_url, null);
+    const d = await (await fetch(`${base}/api/traces/${id}`)).json();
+    assert.equal(d.first_error_seq, 5); assert.equal(d.cost.parts[0].key, 'cache_write');
+    assert.equal((await (await fetch(`${base}/api/config`)).json()).langfuse, false);
+    assert.ok((await (await fetch(`${base}/api/topology`)).json()).nodes.length > 5);
+    for (const p of ['/', '/usage', '/static/flow.js', '/lib/topology.mjs']) assert.equal((await fetch(base + p)).status, 200, p);
+    assert.equal((await fetch(`${base}/static/../../.env`)).status, 404);
+    assert.equal((await fetch(`${base}/api/traces/nothex`)).status, 404);
+    assert.equal((await fetch(`${base}/api/traces`, { method: 'POST' })).status, 405);
+  } finally { srv.close(); }
+});
+~~~~~
+
+~~~~~file path=observability/topology.json
+{
+  "_comment": "에이전트 구성도. 프로젝트에 맞게 노드 이름·역할·match를 고친다. 형식은 observability/VIEWER.md",
+  "lanes": [
+    { "key": "req", "name": "요청", "desc": "사용자 · 예약" },
+    { "key": "worker", "name": "워커 (LLM)", "desc": "생각하고 도구를 고름" },
+    { "key": "read", "name": "조회", "desc": "DB · 문서 읽기" },
+    { "key": "write", "name": "저장", "desc": "기억 · 결과 쓰기" },
+    { "key": "web", "name": "웹", "desc": "검색 · 페이지" },
+    { "key": "out", "name": "응답", "desc": "사용자에게 보냄" }
+  ],
+  "nodes": [
+    { "id": "trig.user", "c": 0, "r": 0, "icon": "trigger", "name": "사용자 요청", "role": "메시지 · 명령 · API 호출", "ns": "trigger.user", "lane": "req", "match": { "kind": "trigger", "trigger": "^(?!schedule$)" } },
+    { "id": "trig.schedule", "c": 0, "r": 1, "icon": "clock", "name": "예약 실행", "role": "cron · 배치", "ns": "trigger.schedule", "lane": "req", "match": { "kind": "trigger", "trigger": "^schedule$" } },
+    { "id": "app", "c": 1, "r": 0, "icon": "bot", "name": "응용 코드", "role": "요청을 작업으로 바꿈", "ns": "app.handler", "lane": "req", "via": ["trig.user"], "match": { "kind": "error" } },
+    { "id": "jobs", "c": 1, "r": 1, "icon": "clock", "name": "작업 실행기", "role": "예약 작업을 워커로", "ns": "app.jobs", "lane": "req", "via": ["trig.schedule"] },
+    { "id": "config", "c": 2, "r": 0, "icon": "config", "name": "모델 설정", "role": "agent/MODELS.md", "ns": "config.models", "lane": "worker", "via": ["worker"] },
+    { "id": "worker", "c": 2, "r": 1, "icon": "brain", "name": "워커 (LLM)", "role": "생각하고 도구를 고름", "ns": "worker.llm", "lane": "worker", "match": { "kind": "^(llm|check)$" } },
+    { "id": "guard", "c": 3, "r": 1, "icon": "gate", "name": "권한 가드", "role": "허용한 도구만 통과", "ns": "gate.tools", "lane": "worker", "via": ["worker"] },
+    { "id": "builtin", "c": 4, "r": 1, "icon": "block", "name": "기타 내장 도구", "role": "파일·셸 · 막혀 있어야 정상", "ns": "worker.builtin", "lane": "worker", "match": { "kind": "tool", "name": "^(Bash|Write|Edit|Read|Glob|Grep|NotebookEdit)$" } },
+    { "id": "out", "c": 5, "r": 0, "icon": "send", "name": "응답 발송", "role": "답장 · 알림", "ns": "out.reply", "lane": "out", "match": { "kind": "output" } },
+    { "id": "lf", "c": 5, "r": 1, "icon": "chart", "name": "Langfuse", "role": "실행 기록 보관 (선택)", "ns": "obs.langfuse", "lane": "out", "special": "langfuse" },
+    { "id": "mcp", "c": 1, "r": 2, "icon": "plug", "name": "도구 서버 (MCP)", "role": "에이전트 전용 도구", "ns": "mcp.server", "lane": "worker", "via": ["t.read", "t.write"] },
+    { "id": "t.read", "c": 2, "r": 2, "icon": "read", "name": "데이터 조회", "role": "DB · 문서 · 기억 읽기", "ns": "mcp.read", "lane": "read", "match": { "kind": "tool", "name": "^mcp__.+__(get|list|search|query|read|find|coverage)" } },
+    { "id": "t.web", "c": 3, "r": 2, "icon": "web", "name": "웹 검색 · 읽기", "role": "WebSearch · WebFetch", "ns": "web", "lane": "web", "match": { "kind": "tool", "name": "^Web(Search|Fetch)$" } },
+    { "id": "t.write", "c": 2, "r": 3, "icon": "write", "name": "기억 · 결과 저장", "role": "save · add · set · update", "ns": "mcp.write", "lane": "write", "match": { "kind": "tool", "name": "^mcp__.+__(save|add|set|update|create|delete|retire|propose)" } },
+    { "id": "rules", "c": 3, "r": 3, "icon": "gate", "name": "규칙 검사", "role": "저장 전 검증 · violations", "ns": "gate.rules", "lane": "write", "via": ["t.write"] },
+    { "id": "t.other", "c": 4, "r": 3, "icon": "plug", "name": "기타 도구", "role": "위에 안 잡힌 도구", "ns": "tool.other", "lane": "worker", "match": { "kind": "tool" } },
+    { "id": "store", "c": 2, "r": 4, "icon": "db", "name": "저장소", "role": "DB · 인덱스", "ns": "store", "lane": "write", "via": ["t.read", "t.write"] }
+  ],
+  "groups": [
+    { "label": "도구", "c0": 2, "c1": 4, "r0": 2, "r1": 3 }
+  ],
+  "edges": [
+    ["trig.user", "app", "요청", "R"],
+    ["trig.schedule", "jobs", "cron", "R"],
+    ["app", "worker", "prompt", "D", 0.5, 0.2],
+    ["jobs", "worker", "prompt", "R"],
+    ["config", "worker", "모델", "D", 0.6, 0.6],
+    ["app", "out", "응답", "T", 0.5, 0.5],
+    ["worker", "guard", "도구 호출", "R"],
+    ["guard", "builtin", "차단", "R"],
+    ["worker", "mcp", "MCP", "D", 0.3, 0.5],
+    ["worker", "t.web", "web", "D", 0.8, 0.5],
+    ["mcp", "t.read", "read", "R"],
+    ["mcp", "t.write", "write", "L", 0.5],
+    ["t.write", "rules", "검사", "R"],
+    ["t.write", "store", "", "D", 0.5, 0.5],
+    ["worker", "lf", "trace", "U", 0.9, 0.5, "lf"]
+  ]
+}
+~~~~~
+
+~~~~~file path=observability/viewer/flow.js
+// 에이전트 흐름 화면: 실행 목록 → 토폴로지 / 순서도(스윔레인) → 단계 상세.
+import { laneFor, nodeFor } from '/lib/topology.mjs';
+import { renderTopology, setup } from '/static/topology.js';
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const api = (p) => fetch(p).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${p} → ${r.status}`))));
+const STATUS = { ok: ['정상', 'ok'], warn: ['경고', 'warn'], error: ['오류', 'err'], running: ['실행 중', ''] };
+const time = (iso) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const hm = (iso) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+const day = (iso) => new Date(iso).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+const ms = (a, b) => (a && b ? Math.max(0, Date.parse(b) - Date.parse(a)) : null);
+const dur = (v) => (v == null ? '' : v < 1000 ? `${v}ms` : `${(v / 1000).toFixed(1)}초`);
+const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+const worst = (xs) => (xs.includes('error') ? 'error' : xs.includes('warn') ? 'warn' : 'ok');
+
+let TOPO, LANES, LANE_IDX;
+const state = { status: '', detail: null, rows: [], cur: 0 };
+
+/** 단계 한 줄의 담당 열·이름·요약. 도구 이름은 구성도 노드 이름으로 바꿔 보여 준다. */
+function describe(s, trace) {
+  const lane = laneFor(TOPO, s, trace);
+  const node = TOPO.nodes.find((n) => n.id === nodeFor(TOPO, s, trace));
+  const input = parse(s.input) || {};
+  if (s.kind === 'llm') {
+    const m = s.meta || {};
+    return { lane, role: '워커가 생각하고 답을 씀', detail: [m.model, m.effort, dur(m.duration_ms ?? ms(s.started_at, s.ended_at)), m.cost_usd != null ? `$${Number(m.cost_usd).toFixed(2)}` : ''].filter(Boolean).join(' · ') };
+  }
+  if (s.kind === 'tool') {
+    const short = s.name.replace(/^mcp__[^_]+__/, '');
+    const first = typeof input === 'object' ? Object.values(input).find((v) => typeof v === 'string') : '';
+    return { lane, role: `${short}${node && node.id !== 't.other' ? ` · ${node.name}` : ''}`, detail: s.status === 'error' ? s.error : first || '',
+      verb: lane === 'write' ? 'write' : '' };
+  }
+  return { lane, role: s.name, detail: s.status === 'error' ? s.error : (s.output || s.input || '').replace(/\s+/g, ' ') };
+}
+
+function buildRows(detail) {
+  const rows = [];
+  for (const s of [...detail.spans].sort((a, b) => a.seq - b.seq)) {
+    const d = describe(s, detail.trace);
+    const last = rows.at(-1);
+    if (last && s.kind === 'tool' && last.kind === 'tool' && last.name === s.name) {
+      last.items.push(s); last.details.push(d.detail); last.status = worst(last.items.map((x) => x.status));
+      continue;
+    }
+    rows.push({ kind: s.kind, name: s.name, items: [s], details: [d.detail], status: s.status, ...d });
+  }
+  return rows;
+}
+
+function renderGraph() {
+  const { trace, spans } = state.detail;
+  const rows = state.rows;
+  const wi = LANE_IDX.worker ?? 1;
+  const firstW = rows.findIndex((r) => r.lane === 'worker');
+  const lastTool = rows.reduce((acc, r, i) => (['tool', 'check', 'output'].includes(r.kind) ? i : acc), firstW);
+  const g = $('#graph');
+  g.style.setProperty('--lanes', LANES.length);
+  let html = LANES.map((l, i) => `<div class="lane-head" style="grid-column:${i + 1};grid-row:1"><b>${esc(l.name)}</b><span>${esc(l.desc)}</span></div>`).join('');
+  html += LANES.map((_, i) => `<div class="lane-bg ${i % 2 ? 'alt' : ''}" style="grid-column:${i + 1};grid-row:2 / span ${Math.max(rows.length, 1)}"></div>`).join('');
+  if (firstW >= 0 && lastTool > firstW) html += `<div class="spine" style="grid-column:${wi + 1};grid-row:${firstW + 2} / ${lastTool + 3}"></div>`;
+  rows.forEach((r, i) => {
+    const li = LANE_IDX[r.lane] ?? wi;
+    let from = null;
+    if (['tool', 'check', 'output'].includes(r.kind)) from = wi;
+    else if (r.kind === 'llm' && i > 0) from = LANE_IDX[rows[i - 1].lane] ?? wi;
+    if (from != null && from !== li) {
+      const a = Math.min(from, li), b = Math.max(from, li);
+      html += `<div class="link ${li > from ? 'right' : 'left'} ${r.status === 'ok' ? '' : r.status}" style="grid-column:${a + 1} / ${b + 2};grid-row:${i + 2};--span:${b - a + 1}"></div>`;
+    }
+    const count = r.items.length > 1 ? ` <span class="count">×${r.items.length}</span>` : '';
+    const detail = r.items.length > 1 ? r.details.filter(Boolean).slice(0, 2).join(' · ') + (r.items.length > 2 ? ' …' : '') : r.details[0];
+    html += `<button type="button" class="step ${r.status === 'ok' ? '' : r.status} ${r.verb === 'write' ? 'write' : ''}" data-i="${i}"
+      data-lane="${esc(LANES[li]?.name || '')}" style="grid-column:${li + 1};grid-row:${i + 2}" aria-pressed="${i === state.cur}"
+      aria-label="${i + 1}번째. ${esc(r.role)}. ${STATUS[r.status]?.[0] || ''}">
+      <span class="num">${i + 1}</span><span class="role">${esc(r.role)}${count}</span><span class="detail">${esc(detail || ' ')}</span></button>`;
+  });
+  g.classList.remove('dense');
+  g.style.gridTemplateRows = `auto repeat(${rows.length}, minmax(44px, auto))`;
+  g.innerHTML = html;
+  if (document.documentElement.scrollHeight > window.innerHeight + 4) { g.classList.add('dense'); g.style.gridTemplateRows = `auto repeat(${rows.length}, minmax(34px, auto))`; }
+  g.querySelectorAll('.step').forEach((b) => b.addEventListener('click', () => select(+b.dataset.i)));
+
+  const phases = [];
+  for (const r of rows) {
+    const label = LANES[LANE_IDX[r.lane] ?? wi]?.name || r.lane;
+    const p = phases.at(-1);
+    if (p && p.label === label) { p.count += r.items.length; p.status = worst([p.status, r.status]); }
+    else phases.push({ label, count: r.items.length, status: r.status, first: rows.indexOf(r) });
+  }
+  $('#phases').innerHTML = phases.map((p) => `<button type="button" class="phase ${p.status === 'ok' ? '' : p.status}" data-i="${p.first}">${esc(p.label)}${p.count > 1 ? ` <b>${p.count}</b>` : ''}${p.status === 'error' ? ' · 오류' : ''}</button>`).join('<span class="arrow" aria-hidden="true">→</span>');
+  $('#phases').querySelectorAll('.phase').forEach((b) => b.addEventListener('click', () => select(+b.dataset.i)));
+
+  const errs = spans.filter((s) => s.status === 'error').length;
+  $('#graph-h').textContent = `${trace.name} · ${trace.trigger}`;
+  $('#graph-sub').textContent = `${day(trace.started_at)} ${time(trace.started_at)} · 단계 ${spans.length}개${errs ? ` · 오류 ${errs}` : ''} · ${dur(ms(trace.started_at, trace.ended_at))}`;
+  const fe = rows.findIndex((r) => r.status === 'error');
+  if (fe >= 0) {
+    const e = rows[fe].items.find((x) => x.status === 'error');
+    $('#cause').hidden = false;
+    $('#cause').innerHTML = `<b>${fe + 1}번째 단계 · ${esc(rows[fe].role)}에서 오류</b> · ${esc((e.error || '').slice(0, 160))} <button type="button" id="jump">그 단계 보기</button>`;
+    $('#jump').addEventListener('click', () => { setView('seq'); select(fe); });
+  } else if (trace.status === 'error') {
+    $('#cause').hidden = false; $('#cause').textContent = `실행 전체가 실패했어요: ${trace.error || ''}`;
+  } else $('#cause').hidden = true;
+}
+
+function renderInspector() {
+  const r = state.rows[state.cur];
+  const tr = state.detail.trace;
+  if (!r) { $('#inspector').innerHTML = '<p class="muted">이 실행에는 기록된 단계가 없어요.</p>'; return; }
+  const [label, cls] = STATUS[r.status] || [r.status, ''];
+  const block = (t, b, x = '') => (b ? `<div class="block ${x}"><span>${t}</span><pre>${esc(b)}</pre></div>` : '');
+  const lane = LANES[LANE_IDX[r.lane]] || { name: r.lane };
+  let body;
+  if (r.items.length > 1) {
+    body = `<ol class="calls">${r.items.map((s, k) => `<li class="${s.status === 'error' ? 'err' : ''}"><b>${k + 1}.</b> ${esc(r.details[k] || s.input || '')}${s.status === 'error' ? `<div class="e">${esc(s.error)}</div>` : ''}</li>`).join('')}</ol>${block('마지막 결과', r.items.at(-1).output)}`;
+  } else {
+    const s = r.items[0], m = s.meta || {};
+    const kv = [['누가', lane.name], ['시각', time(s.started_at)], ['걸린 시간', dur(m.duration_ms ?? ms(s.started_at, s.ended_at)) || '–']];
+    if (s.kind === 'llm') {
+      kv.push(['모델', `${m.model || '?'} · ${m.effort || '?'}`]);
+      if (m.usage) kv.push(['토큰', `입력 ${m.usage.input_tokens ?? '?'} · 출력 ${m.usage.output_tokens ?? '?'} · 캐시 읽기 ${m.usage.cache_read_input_tokens ?? 0} · 캐시 쓰기 ${m.usage.cache_creation_input_tokens ?? 0}`]);
+      if (m.cost_usd != null) kv.push(['비용', `$${Number(m.cost_usd).toFixed(3)}`]);
+      if (m.turns != null) kv.push(['턴', m.turns]);
+    }
+    if (s.kind === 'tool') kv.push(['도구', s.name]);
+    body = `<dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${block('오류', s.error, 'err')}${block('입력', s.input)}${block('결과', s.output)}`;
+  }
+  const lf = /^https?:\/\//.test(tr.langfuse_url || '') ? esc(tr.langfuse_url) : '';
+  $('#inspector').innerHTML = `
+    <span class="muted small">${state.cur + 1} / ${state.rows.length}번째 단계 · ${esc(lane.name)}</span>
+    <h3>${esc(r.role)}${r.items.length > 1 ? ` ×${r.items.length}` : ''}</h3>
+    <span class="badge ${cls}" style="align-self:flex-start">${label}</span>${body}
+    ${lf ? `<a href="${lf}" target="_blank" rel="noopener">Langfuse에서 이 실행 열기 ↗</a>` : '<span class="muted small">Langfuse 미연결 · 로컬 기록만 보여요</span>'}`;
+}
+
+function select(i) {
+  if (!state.rows.length) return;
+  state.cur = Math.max(0, Math.min(state.rows.length - 1, i));
+  document.querySelectorAll('.step').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.i === state.cur)));
+  document.querySelector(`.step[data-i="${state.cur}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  renderInspector();
+}
+
+function setView(v) {
+  document.body.dataset.view = v;
+  $('#tab-topo').setAttribute('aria-selected', String(v === 'topo'));
+  $('#tab-seq').setAttribute('aria-selected', String(v === 'seq'));
+  showView();
+}
+
+function showView() {
+  if (!state.detail) return;
+  renderGraph();
+  if (document.body.dataset.view === 'seq') renderInspector(); else renderTopology(state.detail);
+}
+
+async function openTrace(id) {
+  state.detail = await api(`/api/traces/${encodeURIComponent(id)}`);
+  state.rows = buildRows(state.detail);
+  const fe = state.rows.findIndex((r) => r.status === 'error');
+  state.cur = fe >= 0 ? fe : 0;
+  history.replaceState(null, '', `/?trace=${encodeURIComponent(id)}`);
+  document.querySelectorAll('.run').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  showView();
+}
+
+async function loadRuns(preferId) {
+  const traces = await api(`/api/traces${state.status ? `?status=${state.status}` : ''}`);
+  $('#runs').innerHTML = traces.length ? traces.map((t) => {
+    const s = t.status === 'error' ? `<span class="s err">오류 ${t.error_count || ''}</span>`
+      : t.status === 'warn' ? `<span class="s warn">경고 ${t.warn_count}</span>` : `<span class="s">${t.status === 'running' ? '실행 중' : '정상'} · 단계 ${t.span_count}</span>`;
+    return `<li><button type="button" class="run" data-id="${esc(t.id)}" aria-current="false" title="${esc(t.input || '')}">
+      <span class="t">${day(t.started_at)} ${hm(t.started_at)} · ${esc(t.name)}</span>${s}</button></li>`;
+  }).join('') : '<li class="empty-state muted">아직 기록된 실행이 없어요. 에이전트가 traces/에 기록을 남기면 여기에 보여요.</li>';
+  $('#runs').querySelectorAll('.run').forEach((b) => b.addEventListener('click', () => openTrace(b.dataset.id).catch(showError)));
+  const want = preferId && traces.find((t) => t.id === preferId) ? preferId : (traces.find((t) => t.status === 'error') || traces[0] || {}).id;
+  if (want) await openTrace(want);
+}
+
+function showError(e) { $('#cause').hidden = false; $('#cause').textContent = `불러오지 못했어요: ${e.message}`; }
+
+async function main() {
+  const [topo, cfg] = await Promise.all([api('/api/topology'), api('/api/config')]);
+  TOPO = topo; LANES = topo.lanes; LANE_IDX = Object.fromEntries(LANES.map((l, i) => [l.key, i]));
+  setup(topo, cfg);
+  document.querySelectorAll('.chip[data-status]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-status]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state.status = b.dataset.status;
+    loadRuns().catch(showError);
+  }));
+  $('#tab-topo').addEventListener('click', () => setView('topo'));
+  $('#tab-seq').addEventListener('click', () => setView('seq'));
+  $('#prev').addEventListener('click', () => select(state.cur - 1));
+  $('#next').addEventListener('click', () => select(state.cur + 1));
+  $('#graph').addEventListener('keydown', (e) => {
+    const d = ['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : ['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 0;
+    if (!d) return;
+    e.preventDefault(); select(state.cur + d); document.querySelector(`.step[data-i="${state.cur}"]`)?.focus();
+  });
+  await loadRuns(new URLSearchParams(location.search).get('trace'));
+}
+main().catch(showError);
+~~~~~
+
+~~~~~file path=observability/viewer/index.html
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>에이전트 흐름</title>
+<link rel="stylesheet" href="/static/viewer.css">
+</head>
+<body class="flow" data-view="topo">
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.5 12h4l5-5M11.5 12l5 5"/></svg></span>
+    <div><div class="brand-name">에이전트 흐름</div><div class="muted small">실행 하나를 단계별로 · 오류가 난 곳을 바로 보여줘요</div></div>
+  </div>
+  <nav class="tabs" aria-label="주요 화면">
+    <a href="/" class="tab active">에이전트 흐름</a>
+    <a href="/usage" class="tab">스킬·도구·비용</a>
+  </nav>
+</header>
+
+<main class="flow-layout">
+  <aside class="card runs" aria-labelledby="runs-h">
+    <div class="row-between"><h2 id="runs-h">최근 실행</h2></div>
+    <div class="filters" role="group" aria-label="실행 필터">
+      <button type="button" class="chip" data-status="" aria-pressed="true">전체</button>
+      <button type="button" class="chip" data-status="error" aria-pressed="false">오류만</button>
+    </div>
+    <ol class="run-list" id="runs"></ol>
+  </aside>
+
+  <section class="card graph-card" aria-labelledby="graph-h">
+    <div class="row-between">
+      <h2 id="graph-h">실행을 고르세요</h2>
+      <div class="viewtabs" role="tablist" aria-label="보기 방식">
+        <button type="button" role="tab" id="tab-topo" aria-selected="true">토폴로지</button>
+        <button type="button" role="tab" id="tab-seq" aria-selected="false">순서도</button>
+      </div>
+    </div>
+    <span class="muted small" id="graph-sub"></span>
+    <div class="topo-only topo-wrap">
+      <div class="topo-canvas" id="topo-canvas" aria-label="에이전트 구성도. 끌어서 이동, 버튼으로 확대·축소"></div>
+      <div class="topo-ctrl" role="group" aria-label="보기 조절">
+        <button type="button" id="topo-in" aria-label="확대">+</button>
+        <button type="button" id="topo-out" aria-label="축소">−</button>
+        <button type="button" id="topo-fit" aria-label="화면에 맞추기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div class="topo-only topo-strip" id="topo-strip"></div>
+    <div class="phases seq-only" id="phases" aria-label="실행 요약"></div>
+    <div id="cause" class="cause" hidden></div>
+    <div class="graph seq-only" id="graph" aria-label="단계 순서도. 위에서 아래로 일어난 순서. 화살표 키로 이동"></div>
+    <div class="scrubber seq-only" role="group" aria-label="단계 이동">
+      <button type="button" class="nav-btn" id="prev" aria-label="이전 단계">↑ 이전</button>
+      <span class="muted small grow">위에서 아래로 일어난 순서 · 같은 도구 연속 호출은 한 줄(×횟수) · <span class="write-key">파란 줄</span>은 저장한 단계 · 빨간 칸은 오류</span>
+      <button type="button" class="nav-btn" id="next" aria-label="다음 단계">다음 ↓</button>
+    </div>
+  </section>
+
+  <aside class="card inspector" aria-live="polite" id="inspector">
+    <p class="muted">위에서 실행을 고르면 단계별 입력·결과·오류가 여기에 보여요.</p>
+  </aside>
+</main>
+<script type="module" src="/static/flow.js"></script>
+</body>
+</html>
+~~~~~
+
+~~~~~file path=observability/viewer/server.mjs
+// 실행 기록 뷰어. 의존성 없음. 사용: node observability/viewer/server.mjs  →  http://127.0.0.1:8790
+// 읽기 전용(GET만). 기본으로 이 컴퓨터(127.0.0.1)에만 열린다. 휴대폰 등에서 보려면 VIEWER.md의 원격 접속 절.
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadConfig, langfuseUrl } from '../lib/config.mjs';
+import { runCost } from '../lib/costs.mjs';
+import { TraceStore } from '../lib/store.mjs';
+import { usageReport } from '../lib/usage.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const OBS = path.dirname(HERE);
+// 열어 주는 파일은 이 목록뿐(경로 조작 방지)
+const FILES = {
+  '/': ['index.html', 'text/html'], '/usage': ['usage.html', 'text/html'],
+  '/static/viewer.css': ['viewer.css', 'text/css'], '/static/flow.js': ['flow.js', 'text/javascript'],
+  '/static/topology.js': ['topology.js', 'text/javascript'], '/static/usage.js': ['usage.js', 'text/javascript'],
+  '/lib/topology.mjs': ['../lib/topology.mjs', 'text/javascript'],
+};
+
+export function createViewer(cfg = loadConfig(), { topologyFile = path.join(OBS, 'topology.json') } = {}) {
+  const store = new TraceStore(cfg.tracesDir);
+  const skillDirs = [path.join(cfg.root, 'agent', 'skills'), path.join(cfg.root, '.claude', 'skills')];
+  const withLink = (t) => ({ ...t, langfuse_url: langfuseUrl(cfg.langfuse, t.id), chat_id: undefined });
+
+  const api = {
+    '/api/config': () => ({ langfuse: Boolean(cfg.langfuse), langfuse_host: cfg.langfuse?.host || null }),
+    '/api/topology': () => JSON.parse(readFileSync(topologyFile, 'utf8')),
+    '/api/traces': (q) => store.list({ status: q.get('status') || undefined, limit: Math.min(Number(q.get('limit')) || 50, 200) }).map(withLink),
+    '/api/usage': (q) => usageReport(store, { days: Math.min(Math.max(Number(q.get('days')) || 30, 1), 365), skillDirs }),
+  };
+
+  return createServer((req, res) => {
+    const send = (code, body, type = 'application/json') => {
+      res.writeHead(code, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      res.end(type === 'application/json' ? JSON.stringify(body) : body);
+    };
+    try {
+      if (req.method !== 'GET') return send(405, { error: 'read-only' });
+      const url = new URL(req.url, 'http://x');
+      if (FILES[url.pathname]) {
+        const [file, type] = FILES[url.pathname];
+        return send(200, readFileSync(path.join(HERE, file)), type);
+      }
+      if (api[url.pathname]) return send(200, api[url.pathname](url.searchParams));
+      const m = url.pathname.match(/^\/api\/traces\/([0-9a-f]{32})$/);
+      if (m) {
+        const d = store.get(m[1]);
+        if (!d) return send(404, { error: 'trace not found' });
+        const first = d.spans.find((s) => s.status === 'error');
+        return send(200, { trace: withLink(d.trace), spans: d.spans, first_error_seq: first ? first.seq : null,
+          cost: runCost(d.spans.filter((s) => s.kind === 'llm')) });
+      }
+      return send(404, { error: 'not found' });
+    } catch (e) {
+      return send(500, { error: e.message });
+    }
+  });
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const cfg = loadConfig();
+  createViewer(cfg).listen(cfg.viewerPort, cfg.viewerHost, () => {
+    console.log(`trace viewer: http://${cfg.viewerHost}:${cfg.viewerPort}  (traces: ${cfg.tracesDir}, Langfuse: ${cfg.langfuse ? cfg.langfuse.host : '꺼짐'})`);
+  });
+}
+~~~~~
+
+~~~~~file path=observability/viewer/topology.js
+// 토폴로지 보기: 에이전트 전체를 고정된 지도로 그리고, 고른 실행이 쓴 부분에 불을 켠다.
+// 지도는 observability/topology.json. 마우스 휠은 페이지 스크롤에 양보하고, 확대·축소는 버튼으로만 한다.
+import { overlay } from '/lib/topology.mjs';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const NW = 200, NH = 104;
+const X = (c) => 40 + c * 250, Y = (r) => 56 + r * 160;
+const ICON = {
+  trigger: '<path d="M4 4h16v12H8l-4 4z"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  gate: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/>',
+  bot: '<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01"/>',
+  brain: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+  config: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  plug: '<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>',
+  read: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  write: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  web: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  send: '<path d="M3 11l18-8-8 18-2-8z"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  block: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+};
+const STATUS = { ok: ['완료', 'ok'], error: ['실패', 'err'], warn: ['경고', 'warn'] };
+const PART_COLOR = { cache_write: '#C2410C', output: '#1F5FAD', cache_read: '#8A8A84', input: '#D4D4CE' };
+
+let TOPO = null, BY_ID = {}, cfg = { langfuse: false };
+let view = { k: 1, x: 0, y: 0 }, current = null, selected = null, ov = null;
+const pos = (n) => ({ x: X(n.c), y: Y(n.r) });
+const size = () => ({ W: X(Math.max(...TOPO.nodes.map((n) => n.c)) + 1) + 20, H: Y(Math.max(...TOPO.nodes.map((n) => n.r)) + 1) + 20 });
+
+export function setup(topology, config) {
+  TOPO = topology; cfg = config;
+  BY_ID = Object.fromEntries(TOPO.nodes.map((n) => [n.id, n]));
+  const host = document.getElementById('topo-canvas');
+  let drag = null;
+  host.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.topo-node')) return;
+    drag = { x: e.clientX - view.x, y: e.clientY - view.y };
+    host.setPointerCapture(e.pointerId);
+    host.classList.add('grabbing');
+  });
+  host.addEventListener('pointermove', (e) => { if (drag) { view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; applyView(); } });
+  host.addEventListener('pointerup', () => { drag = null; host.classList.remove('grabbing'); });
+  document.getElementById('topo-in').addEventListener('click', () => zoom(1.2));
+  document.getElementById('topo-out').addEventListener('click', () => zoom(1 / 1.2));
+  document.getElementById('topo-fit').addEventListener('click', fit);
+  window.addEventListener('resize', () => current && fit());
+}
+
+function edgePath(a, b, mode, ax = 0.5, bx = 0.5) {
+  const pa = pos(a), pb = pos(b);
+  const sx = pa.x + NW * ax, tx = pb.x + NW * bx;
+  if (mode === 'R') { const y = pa.y + NH / 2; return [`M ${pa.x + NW} ${y} L ${pb.x - 6} ${y}`, (pa.x + NW + pb.x) / 2, y - 10]; }
+  if (mode === 'D') {
+    const gy = pb.y - 42;
+    if (Math.abs(sx - tx) < 1) return [`M ${sx} ${pa.y + NH} L ${tx} ${pb.y - 6}`, tx + 22, (pa.y + NH + pb.y) / 2];
+    return [`M ${sx} ${pa.y + NH} L ${sx} ${gy} L ${tx} ${gy} L ${tx} ${pb.y - 6}`, tx, gy + 14];
+  }
+  if (mode === 'L') { const y = pb.y + NH / 2; return [`M ${sx} ${pa.y + NH} L ${sx} ${y} L ${pb.x - 6} ${y}`, (sx + pb.x) / 2, y - 10]; }
+  if (mode === 'T') { const gy = Math.min(pa.y, pb.y) - 26; return [`M ${sx} ${pa.y} L ${sx} ${gy} L ${tx} ${gy} L ${tx} ${pb.y - 6}`, (sx + tx) / 2, gy - 9]; }
+  if (mode === 'U') { const gy = pa.y + NH + 14; return [`M ${sx} ${pa.y + NH} L ${sx} ${gy} L ${tx} ${gy} L ${tx} ${pb.y + NH + 6}`, (sx + tx) / 2, gy - 9]; }
+  return [`M ${pa.x + NW} ${pa.y} L ${pb.x} ${pb.y}`, 0, 0];
+}
+
+function render() {
+  const host = document.getElementById('topo-canvas');
+  const { W, H } = size();
+  let html = `<div class="topo-world" id="topo-world" style="width:${W}px;height:${H}px">`;
+  for (const g of TOPO.groups || []) {
+    const r1 = g.r1 ?? g.r0;
+    html += `<div class="topo-group" style="left:${X(g.c0) - 16}px;top:${Y(g.r0) - 28}px;width:${X(g.c1) - X(g.c0) + NW + 32}px;height:${Y(r1) - Y(g.r0) + NH + 44}px"><span>${esc(g.label)}</span></div>`;
+  }
+  html += `<svg class="topo-edges" width="${W}px" height="${H}px" aria-hidden="true"><defs>
+    <marker id="ta-on" orient="auto" markerWidth="8" markerHeight="8" refX="6" refY="4"><path d="M0 0 L8 4 L0 8Z" fill="#3F3F3B"/></marker>
+    <marker id="ta-off" orient="auto" markerWidth="8" markerHeight="8" refX="6" refY="4"><path d="M0 0 L8 4 L0 8Z" fill="#C9C9C2"/></marker>
+    <marker id="ta-err" orient="auto" markerWidth="8" markerHeight="8" refX="6" refY="4"><path d="M0 0 L8 4 L0 8Z" fill="#D8473A"/></marker></defs>`;
+  const labels = [];
+  for (const [a, b, label, mode, ax, bx, onIf] of TOPO.edges) {
+    if (!BY_ID[a] || !BY_ID[b]) continue;
+    const used = (id) => ov && ov.st[id];
+    const on = Boolean(ov && (onIf ? used(onIf) : used(a) && used(b)));
+    const err = on && ov.st[b]?.status === 'error';
+    const [d, lx, ly] = edgePath(BY_ID[a], BY_ID[b], mode, ax, bx);
+    html += `<path d="${d}" class="${err ? 'err' : on ? 'on' : 'off'}" marker-end="url(#${err ? 'ta-err' : on ? 'ta-on' : 'ta-off'})"/>`;
+    if (label) labels.push(`<span class="topo-elabel ${on ? 'on' : ''}" style="left:${lx}px;top:${ly - 8}px">${esc(label)}</span>`);
+  }
+  html += `</svg>${labels.join('')}`;
+  for (const n of TOPO.nodes) {
+    const p = pos(n), o = ov?.st[n.id], dis = ov?.disabled.has(n.id);
+    const [label, cls] = o ? STATUS[o.status] : dis ? ['꺼짐', 'off'] : ['미사용', 'idle'];
+    const k = o ? o.calls.length : 0;
+    const secs = (v) => (v < 1000 ? `${v}ms` : `${(v / 1000).toFixed(1)}s`);
+    const metric = !o ? '—' : o.calls.some((s) => s.kind === 'llm')
+      ? `${o.calls.reduce((t, s) => t + (s.meta?.usage?.output_tokens || 0), 0)} tok · ${secs(o.ms)}`
+      : k > 1 ? `×${k} · ${secs(o.ms)}` : k === 1 ? secs(o.ms) : (o.note || '✓');
+    const sub = o?.status === 'error' ? (o.calls.find((s) => s.status === 'error')?.error || '실패') : o?.note || n.role;
+    html += `<button type="button" class="topo-node ${cls} ${selected === n.id ? 'sel' : ''}" data-id="${esc(n.id)}" style="left:${p.x}px;top:${p.y}px"
+      aria-label="${esc(n.name)}: ${label}. ${esc(n.role)}">
+      <span class="tn-head"><span class="tn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n.icon] || ICON.plug}</svg></span>
+        <span class="tn-status ${cls}"><i></i>${label}</span></span>
+      <span class="tn-name">${esc(n.name)}</span>
+      <span class="tn-sub">${esc(o ? sub : n.role)}</span>
+      <span class="tn-foot"><span class="tn-ns">${esc(n.ns || n.id)}</span><span class="tn-metric">${esc(metric)}</span></span>
+    </button>`;
+  }
+  host.innerHTML = `${html}</div>`;
+  host.querySelectorAll('.topo-node').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); select(b.dataset.id); }));
+  applyView();
+  renderStrip();
+}
+
+function applyView() { const w = document.getElementById('topo-world'); if (w) w.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`; }
+function fit() {
+  const host = document.getElementById('topo-canvas');
+  const { W, H } = size();
+  const k = Math.min(host.clientWidth / W, host.clientHeight / H, 1.2);
+  view = { k, x: (host.clientWidth - W * k) / 2, y: (host.clientHeight - H * k) / 2 };
+  applyView();
+}
+function zoom(f) {
+  const host = document.getElementById('topo-canvas');
+  const cx = host.clientWidth / 2, cy = host.clientHeight / 2;
+  const k = Math.max(0.3, Math.min(2.5, view.k * f));
+  view.x = cx - (cx - view.x) * (k / view.k); view.y = cy - (cy - view.y) * (k / view.k); view.k = k;
+  applyView();
+}
+
+const usd = (v) => `$${v >= 0.1 ? v.toFixed(2) : v.toFixed(3)}`;
+function renderStrip() {
+  const el = document.getElementById('topo-strip');
+  const vals = TOPO.nodes.map((n) => (ov.st[n.id] ? ov.st[n.id].status : ov.disabled.has(n.id) ? 'off' : 'idle'));
+  const c = (k) => vals.filter((v) => v === k).length;
+  const cost = current.cost?.total || 0;
+  const t = current.trace;
+  const total = t.ended_at ? (Date.parse(t.ended_at) - Date.parse(t.started_at)) / 1000 : null;
+  el.innerHTML = [
+    ['완료', c('ok'), 'ok'], ['실패', c('error'), c('error') ? 'err' : ''], ['미사용', c('idle'), ''],
+    ['걸린 시간', total == null ? '–' : `${total.toFixed(1)}초`, ''], ['비용', cost ? usd(cost) : '–', ''],
+    ['Langfuse', cfg.langfuse ? (t.exported ? '전송됨' : '대기') : '꺼짐', ''],
+  ].map(([k, v, cls]) => (k === '비용' && cost
+    ? `<button type="button" class="ts-cell ts-btn" id="cost-btn" title="비용 내역 보기"><span>${k} · 내역 보기</span><b>${v}</b></button>`
+    : `<div class="ts-cell ${cls}"><span>${k}</span><b>${v}</b></div>`)).join('');
+  document.getElementById('cost-btn')?.addEventListener('click', showCost);
+}
+
+export function showCost() {
+  const c = current?.cost;
+  if (!c || !c.total) return;
+  selected = null;
+  document.querySelectorAll('.topo-node').forEach((b) => b.classList.remove('sel'));
+  const why = [];
+  if (c.parts[0]?.key === 'cache_write') why.push('가장 큰 몫은 캐시에 새로 올린 내용이에요. 지시문과 이전 대화가 길수록, 1시간 캐시를 쓸수록 커져요.');
+  if (c.resumed) why.push('이 실행은 앞 대화를 이어받았어요(resume). 캐시가 만료된 뒤라면 대화 기록 전체를 다시 캐시에 써요.');
+  if (c.turns > 6) why.push(`모델이 ${c.turns}번 오갔어요. 도구를 부를 때마다 앞 내용 전체를 다시 읽어서 읽기 비용이 쌓여요.`);
+  if (c.thinking_tokens) why.push(`생각(thinking)에 ${c.thinking_tokens.toLocaleString()} 토큰을 썼어요. 출력 가격으로 계산돼요.`);
+  document.getElementById('inspector').innerHTML = `
+    <span class="muted small">이 실행의 비용</span>
+    <h3>${usd(c.total)}</h3>
+    <div class="cost-stack" role="img" aria-label="${esc(c.parts.map((p) => `${p.label} ${Math.round(p.share * 100)}%`).join(', '))}">
+      ${c.parts.map((p) => `<span style="width:${p.share * 100}%;background:${PART_COLOR[p.key]}"></span>`).join('')}</div>
+    <ol class="cost-parts">${c.parts.map((p) => `<li><span class="sw" style="background:${PART_COLOR[p.key]}"></span>
+      <div><b>${esc(p.label)}</b> <span class="muted small">${p.tokens.toLocaleString()} 토큰</span><div class="muted small">${esc(p.hint)}</div></div>
+      <b class="amt">${usd(p.usd)}<span class="muted small"> ${Math.round(p.share * 100)}%</span></b></li>`).join('')}</ol>
+    ${why.length ? `<dl class="kv"><dt>왜 이만큼</dt><dd>${why.map(esc).join('<br>')}</dd></dl>` : ''}
+    <p class="muted small">모델이 알려 준 실제 청구액을 토큰 종류별 가격 비율로 나눈 값이에요. 기간별 합계는 <a href="/usage">스킬·도구·비용</a>에서 봐요.</p>`;
+}
+
+function select(id) {
+  selected = id;
+  document.querySelectorAll('.topo-node').forEach((b) => b.classList.toggle('sel', b.dataset.id === id));
+  const n = BY_ID[id], o = ov?.st[id];
+  const block = (t, b) => (b ? `<div class="block"><span>${t}</span><pre>${esc(b)}</pre></div>` : '');
+  const [label, cls] = o ? STATUS[o.status] : ov?.disabled.has(id) ? ['꺼짐', ''] : ['미사용', ''];
+  const calls = o?.calls || [];
+  const lf = current?.trace.langfuse_url;
+  document.getElementById('inspector').innerHTML = `
+    <span class="muted small">${esc(n.ns || n.id)}</span>
+    <h3>${esc(n.name)}</h3>
+    <span class="badge ${cls}" style="align-self:flex-start">${label}</span>
+    <dl class="kv"><dt>하는 일</dt><dd>${esc(n.role)}</dd>${o?.note ? `<dt>이번 실행</dt><dd>${esc(o.note)}</dd>` : ''}
+      <dt>호출</dt><dd>${calls.length ? `${calls.length}회` : o ? '기록 없음 (경로상 거침)' : '0회'}</dd></dl>
+    ${calls.length ? `<ol class="calls">${calls.map((s, k) => `<li class="${s.status === 'error' ? 'err' : ''}"><b>${k + 1}.</b> ${esc((s.input || s.name || '').slice(0, 160))}
+      ${s.status === 'error' ? `<div class="e">${esc(s.error)}</div>` : ''}</li>`).join('')}</ol>`
+    : o ? '<p class="muted small">이번 실행이 이 부분을 지나갔어요. 여기는 따로 호출 기록이 남지 않는 단계라, 앞뒤 단계를 보고 거쳤다고 표시했어요.</p>'
+      : '<p class="muted small">이번 실행에서는 이 부분을 쓰지 않았어요 (미사용).</p>'}
+    ${calls.length === 1 ? block('결과', calls[0].output) : ''}
+    ${lf && /^https?:\/\//.test(lf) ? `<a href="${esc(lf)}" target="_blank" rel="noopener">Langfuse에서 이 실행 전체 보기 ↗</a>` : ''}`;
+}
+
+export function renderTopology(detail) {
+  current = detail;
+  ov = overlay(TOPO, detail, { langfuse: cfg.langfuse });
+  const firstErr = TOPO.nodes.find((n) => ov.st[n.id]?.status === 'error');
+  selected = firstErr ? firstErr.id : (TOPO.nodes.find((n) => ov.st[n.id]?.calls.some((s) => s.kind === 'llm'))?.id || TOPO.nodes[0].id);
+  render();
+  fit();
+  select(selected);
+}
+~~~~~
+
+~~~~~file path=observability/viewer/usage.html
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스킬·도구·비용</title>
+<link rel="stylesheet" href="/static/viewer.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></span>
+    <div><div class="brand-name">스킬·도구·비용</div><div class="muted small">가진 것과 실제로 쓴 것 · 비용이 어디서 나오는지</div></div>
+  </div>
+  <nav class="tabs" aria-label="주요 화면">
+    <a href="/" class="tab">에이전트 흐름</a>
+    <a href="/usage" class="tab active">스킬·도구·비용</a>
+  </nav>
+</header>
+<main class="wrap">
+  <div class="filters" role="group" aria-label="기간">
+    <button type="button" class="chip" data-days="7" aria-pressed="false">7일</button>
+    <button type="button" class="chip" data-days="30" aria-pressed="true">30일</button>
+    <button type="button" class="chip" data-days="90" aria-pressed="false">90일</button>
+  </div>
+  <section class="card" aria-labelledby="cost-h">
+    <div class="row-between"><h2 id="cost-h">비용은 어디서 나오나</h2><span class="muted small" id="cost-total"></span></div>
+    <div id="cost" class="col"></div>
+  </section>
+  <section class="card" aria-labelledby="skills-h">
+    <div class="row-between"><h2 id="skills-h">스킬</h2><span class="muted small" id="skills-sub"></span></div>
+    <div id="skills"></div>
+  </section>
+  <section class="card" aria-labelledby="tools-h">
+    <div class="row-between"><h2 id="tools-h">도구</h2><span class="muted small" id="tools-sub"></span></div>
+    <div class="table-scroll"><table class="cap-table" id="tools"></table></div>
+  </section>
+</main>
+<script type="module" src="/static/usage.js"></script>
+</body>
+</html>
+~~~~~
+
+~~~~~file path=observability/viewer/usage.js
+// 스킬·도구·비용 화면. 데이터: /api/usage?days=N (observability/lib/usage.mjs)
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const PART_COLOR = { cache_write: '#C2410C', output: '#1F5FAD', cache_read: '#8A8A84', input: '#D4D4CE' };
+const usd = (v) => `$${v >= 0.1 ? v.toFixed(2) : v.toFixed(3)}`;
+const ago = (iso) => { if (!iso) return '–'; const d = (Date.now() - Date.parse(iso)) / 864e5; return d < 1 ? '오늘' : `${Math.floor(d)}일 전`; };
+
+function costBlock(d) {
+  const all = d.cost_by_job, total = all.reduce((t, j) => t + j.usd, 0);
+  document.getElementById('cost-total').textContent = total ? `최근 ${d.days}일 합계 ${usd(total)}` : '';
+  if (!total) return '<p class="muted">이 기간에 비용이 기록된 모델 호출이 없어요. llm span의 meta.cost_usd·usage를 남기면 여기에 나와요.</p>';
+  const parts = {};
+  for (const j of all) for (const p of j.parts) { const q = (parts[p.key] ||= { ...p, usd: 0, tokens: 0 }); q.usd += p.usd; q.tokens += p.tokens; }
+  const ps = Object.values(parts).sort((a, b) => b.usd - a.usd);
+  const pct = (v) => Math.round((v / total) * 100);
+  return `
+    <h3 class="small muted" style="margin:0">무엇에 쓰였나</h3>
+    <div class="stack" role="img" aria-label="${esc(ps.map((p) => `${p.label} ${pct(p.usd)}%`).join(', '))}">${ps.map((p) => `<span style="width:${(p.usd / total) * 100}%;background:${PART_COLOR[p.key]}"></span>`).join('')}</div>
+    <table class="cap-table"><tbody>${ps.map((p) => `<tr><td><span class="sw" style="background:${PART_COLOR[p.key]}"></span> <b>${esc(p.label)}</b><div class="muted small">${esc(p.hint)}</div></td>
+      <td class="num">${p.tokens.toLocaleString()} 토큰</td><td class="num"><b>${usd(p.usd)}</b> · ${pct(p.usd)}%</td></tr>`).join('')}</tbody></table>
+    <h3 class="small muted" style="margin:8px 0 0">어떤 작업에 쓰였나</h3>
+    <table class="cap-table"><tbody>${all.map((j) => `<tr><td>${esc(j.job)}</td><td class="num">${j.runs}회</td><td class="num">회당 ${usd(j.usd / j.runs)}</td><td class="num"><b>${usd(j.usd)}</b></td></tr>`).join('')}</tbody></table>
+    <p class="muted small" style="margin:0">모델이 알려 준 실제 청구액을 토큰 종류별 가격 비율로 나눈 값이에요. 실행 하나의 내역은 에이전트 흐름에서 비용 칸을 눌러 봐요.</p>`;
+}
+
+function skillsBlock(d) {
+  document.getElementById('skills-sub').textContent = `${d.skills.length}개 보유`;
+  if (!d.skills.length) return '<div class="empty"><b>아직 스킬이 없어요</b><span class="muted small">agent/skills/&lt;이름&gt;/SKILL.md 또는 .claude/skills/에 두면 여기에 나와요. 사용 횟수는 실행 기록의 "Skill" 도구 호출로 셉니다.</span></div>';
+  return `<table class="cap-table"><thead><tr><th>스킬</th><th>하는 일</th><th>위치</th><th class="num">사용</th></tr></thead><tbody>
+    ${d.skills.map((s) => `<tr class="${s.uses ? '' : 'unused'}"><td class="cap-name">${esc(s.name)}</td><td>${esc(s.description)}</td><td class="muted small">${esc(s.source)}</td><td class="num">${s.uses}회</td></tr>`).join('')}</tbody></table>`;
+}
+
+function toolsBlock(d) {
+  document.getElementById('tools-sub').textContent = `${d.tools.length}개 사용 (최근 ${d.days}일)`;
+  if (!d.tools.length) return '<tbody><tr><td class="muted">이 기간에 도구 호출 기록이 없어요.</td></tr></tbody>';
+  const max = Math.max(1, ...d.tools.map((t) => t.uses));
+  return `<thead><tr><th>도구</th><th class="num">사용</th><th class="num">오류</th><th class="num">마지막</th></tr></thead><tbody>
+    ${d.tools.map((t) => `<tr><td class="cap-name">${esc(t.name)}</td><td class="num"><span class="usebar" style="width:${(t.uses / max) * 60}px"></span>${t.uses}</td>
+      <td class="num ${t.errors ? 'err-n' : ''}">${t.errors || '–'}</td><td class="num">${ago(t.last_used)}</td></tr>`).join('')}</tbody>`;
+}
+
+async function load(days) {
+  document.querySelectorAll('[data-days]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.days === String(days))));
+  const d = await (await fetch(`/api/usage?days=${days}`)).json();
+  document.getElementById('cost').innerHTML = costBlock(d);
+  document.getElementById('skills').innerHTML = skillsBlock(d);
+  document.getElementById('tools').innerHTML = toolsBlock(d);
+}
+document.querySelectorAll('[data-days]').forEach((b) => b.addEventListener('click', () => load(b.dataset.days)));
+load(30);
+~~~~~
+
+~~~~~file path=observability/viewer/viewer.css
+/* 실행 기록 뷰어 스타일. 구성도는 밝은 화면 전용(data-theme="light"). */
+:root {
+  color-scheme: light;
+  --bg: #F4F4F1; --surface: #FFFFFF; --sunk: #F0F0EC; --line: #E4E4DF; --line-strong: #D4D4CE;
+  --ink: #18181B; --ink-2: #3F3F3B; --muted: #5B5B57; --faint: #8A8A84;
+  --s1: #2A78D6; --s1-ink: #1F5FAD; --s2: #EB6834; --s2-ink: #B8461A; --s2-soft: #FDEEE6;
+  --ok-bg: #E6F4EA; --ok-ink: #1E5B2E;
+  --warn-bg: #FFF6E5; --warn-line: #E0A43A; --warn-ink: #5C3D00;
+  --err-bg: #FDECEA; --err-line: #D8473A; --err-ink: #8A1C12;
+  --accent: #18181B; --on-accent: #FFFFFF; --link: #1F5FAD;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+a { color: var(--link); }
+h2 { font-size: 20px; margin: 0; }
+h3 { font-size: 14px; margin: 0 0 6px; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+.grow { flex: 1 1 240px; }
+
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+@media (min-width: 720px) { .topbar { padding: 18px 32px; } }
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.brand-name { font-size: 18px; font-weight: 700; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab { padding: 9px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 14px; }
+.tab:hover { background: var(--sunk); }
+.tab.active { background: var(--accent); color: var(--on-accent); font-weight: 500; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 64px; display: flex; flex-direction: column; gap: 20px; }
+@media (min-width: 720px) { .wrap { padding: 24px 32px 64px; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (min-width: 720px) { .card { padding: 24px; } }
+.row-between { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px; }
+.badge { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--sunk); color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.empty-state { margin: 0; padding: 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 12px; }
+.flow-layout { display: grid; gap: 16px; padding: 16px; grid-template-columns: minmax(0, 1fr); max-width: 1680px; margin: 0 auto; }
+@media (min-width: 1000px) { .flow-layout { grid-template-columns: minmax(0, 1fr) 340px; padding: 20px 32px; align-items: start; } .runs { grid-column: 1 / -1; } }
+.runs, .inspector { gap: 12px; }
+@media (min-width: 1000px) { .inspector { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; } }
+.runs { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 12px; }
+.runs h2 { font-size: 15px; } .runs .filters { flex-wrap: nowrap; }
+.run-list { list-style: none; margin: 0; padding: 2px; display: flex; gap: 8px; overflow-x: auto; flex: 1 1 400px; min-width: 0; }
+.run-list li { flex: 0 0 220px; }
+.run { width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.run[aria-current="true"] { border: 2px solid var(--accent); padding: 9px 11px; }
+.run .t { font-size: 14px; font-weight: 500; }
+.run .s { font-size: 13px; color: var(--muted); }
+.run .s.err { color: var(--err-ink); } .run .s.warn { color: var(--warn-ink); }
+
+.cause { border-radius: 12px; padding: 12px 16px; background: var(--err-bg); border: 1px solid var(--err-line); color: var(--err-ink); font-size: 14px; }
+.cause button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.phases { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.phase { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.phase.error { background: var(--err-bg); border-color: var(--err-line); color: var(--err-ink); font-weight: 600; }
+.phase.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+.phases .arrow { color: var(--faint); font-size: 13px; }
+
+/* swimlane sequence: columns = who, rows = when (top to bottom) */
+.graph { display: grid; grid-template-columns: repeat(var(--lanes, 5), minmax(0, 1fr)); column-gap: 0; row-gap: 6px; position: relative; }
+.lane-head { display: flex; flex-direction: column; gap: 2px; padding: 0 8px 8px; border-bottom: 1px solid var(--line); text-align: center; position: sticky; top: 0; background: var(--surface); z-index: 3; }
+.lane-head b { font-size: 13px; }
+.lane-head span { font-size: 11px; color: var(--muted); }
+.lane-bg { z-index: 0; margin: -4px 0; border-radius: 8px; }
+.lane-bg.alt { background: var(--sunk); }
+.spine { z-index: 1; justify-self: center; width: 2px; background: var(--line-strong); margin: 24px 0; }
+.link { z-index: 1; align-self: center; height: 2px; background: var(--faint); margin: 0 calc(50% / var(--span, 2)); position: relative; }
+.link::after { content: ""; position: absolute; top: -4px; border: 5px solid transparent; }
+.link.right::after { right: -2px; border-left: 8px solid var(--faint); border-right: 0; }
+.link.left::after { left: -2px; border-right: 8px solid var(--faint); border-left: 0; }
+.link.error { background: var(--err-line); } .link.error.right::after { border-left-color: var(--err-line); } .link.error.left::after { border-right-color: var(--err-line); }
+.link.warn { background: var(--warn-line); }
+.step { z-index: 2; position: relative; margin: 0 6px; min-width: 0; padding: 8px 10px 8px 34px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.step .num { position: absolute; left: 8px; top: 9px; width: 20px; height: 20px; border-radius: 50%; background: var(--sunk); color: var(--ink-2); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.step .role { font-size: 13px; font-weight: 600; line-height: 1.35; }
+.step .count { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--sunk); font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.step .detail { font-size: 12px; color: var(--muted); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; word-break: break-all; }
+.step.write { border-style: solid; border-left: 4px solid var(--s1); padding-left: 31px; }
+.step.write .num { left: 5px; }
+.step.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+.step.error { background: var(--err-bg); border-color: var(--err-line); }
+.step.error .num { background: var(--err-line); color: #fff; }
+.step.error .detail { color: var(--err-ink); }
+.step[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
+.step:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+@media (max-width: 720px) {
+  /* phone: one column timeline, the lane becomes a small tag */
+  .graph { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important; }
+  .lane-head, .lane-bg, .spine, .link { display: none; }
+  .step { grid-column: 1 !important; grid-row: auto !important; margin: 0; }
+  .step::before { content: attr(data-lane); font-size: 11px; color: var(--muted); }
+  .graph.dense .step .detail { display: -webkit-box; }
+}
+
+.scrubber { display: flex; align-items: center; gap: 12px; }
+.nav-btn { flex: none; min-width: 44px; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.calls { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.calls li { padding: 8px 10px; border-radius: 8px; background: var(--sunk); word-break: break-all; }
+.calls li.err { background: var(--err-bg); color: var(--err-ink); }
+.calls .e { margin-top: 4px; font-size: 12px; }
+.inspector h3 { font-size: 18px; margin: 0; line-height: 1.4; word-break: break-all; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-all; }
+.block { display: flex; flex-direction: column; gap: 4px; }
+.block > span { font-size: 12px; color: var(--muted); }
+.block pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--sunk); border-radius: 8px; padding: 10px; white-space: pre-wrap; word-break: break-all; max-height: 280px; overflow: auto; }
+.block.err pre { background: var(--err-bg); color: var(--err-ink); }
+
+/* fit one screen */
+body.flow .topbar { padding-top: 10px; padding-bottom: 10px; }
+body.flow .topbar .muted.small { display: none; }
+.runs { padding: 8px 12px; }
+.run { padding: 6px 10px; flex-direction: row; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
+.run[aria-current="true"] { padding: 5px 9px; }
+.run .in { display: none; }
+.graph-card { gap: 10px; padding: 16px 20px; }
+.step { padding: 5px 8px 5px 30px; gap: 0; }
+.step .num { left: 6px; top: 7px; }
+.step .role { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graph.dense .step .detail { display: none; }
+.graph.dense { row-gap: 4px; }
+.write-key { border-left: 4px solid var(--s1); padding-left: 4px; }
+body[data-view="topo"] .seq-only { display: none !important; }
+body[data-view="seq"] .topo-only { display: none !important; }
+.viewtabs { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--sunk); gap: 2px; }
+.viewtabs button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.viewtabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+.topo-wrap { position: relative; }
+.topo-canvas { position: relative; height: min(68vh, 760px); min-height: 420px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; cursor: grab; touch-action: none;
+  background-color: #FAFAF8; background-image: radial-gradient(#DADAD3 1px, transparent 1px); background-size: 20px 20px; }
+.topo-canvas.grabbing { cursor: grabbing; }
+.topo-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.topo-group { position: absolute; border: 1px dashed #C9C9C2; border-radius: 14px; background: rgba(255,255,255,.55); }
+.topo-group span { position: absolute; left: 12px; top: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.topo-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.topo-edges path { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+.topo-edges path.off { stroke: #C9C9C2; stroke-dasharray: 5 5; }
+.topo-edges path.on { stroke: #3F3F3B; }
+.topo-edges path.err { stroke: #D8473A; stroke-width: 2.2; }
+.topo-elabel { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; background: #FAFAF8; color: #A3A39D; white-space: nowrap; pointer-events: none; }
+.topo-elabel.on { color: #3F3F3B; }
+
+.topo-node { position: absolute; width: 200px; height: 104px; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid #DADAD3; background: #FFFFFF;
+  font: inherit; text-align: left; color: var(--ink); display: flex; flex-direction: column; gap: 2px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.topo-node.idle, .topo-node.off { background: #FBFBF9; color: #8A8A84; }
+.topo-node.idle .tn-icon, .topo-node.off .tn-icon { opacity: .55; }
+.topo-node.ok { border-color: #9FCFAE; }
+.topo-node.err { border: 2px solid #D8473A; background: #FFF6F5; padding: 9px 11px; }
+.topo-node.warn { border-color: #E0A43A; background: #FFFBF2; }
+.topo-node.sel { box-shadow: 0 0 0 3px #18181B; }
+.topo-node:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+.tn-head { display: flex; justify-content: space-between; align-items: center; }
+.tn-icon { width: 26px; height: 26px; border-radius: 7px; background: #F0F0EC; color: #3F3F3B; display: grid; place-items: center; }
+.topo-node.err .tn-icon { background: #FDECEA; color: #B42318; }
+.tn-status { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; color: #8A8A84; }
+.tn-status i { width: 7px; height: 7px; border-radius: 50%; background: #C9C9C2; }
+.tn-status.ok { color: #1E5B2E; } .tn-status.ok i { background: #2E9E55; }
+.tn-status.err { color: #B42318; } .tn-status.err i { background: #D8473A; }
+.tn-status.warn { color: #7A5300; } .tn-status.warn i { background: #E0A43A; }
+.tn-name { margin-top: 4px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tn-sub { font-size: 12px; color: #5B5B57; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topo-node.err .tn-sub { color: #8A1C12; }
+.topo-node.idle .tn-name, .topo-node.idle .tn-sub, .topo-node.off .tn-sub { color: #8A8A84; }
+.tn-foot { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
+.tn-ns { color: #A3A39D; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tn-metric { color: #3F3F3B; font-weight: 600; white-space: nowrap; }
+
+.topo-ctrl { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.topo-ctrl button { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #DADAD3; background: #FFFFFF; font-size: 18px; color: var(--ink); cursor: pointer; display: grid; place-items: center; }
+.topo-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ts-cell { padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+.ts-cell:last-child { border-right: 0; }
+.ts-cell span { font-size: 12px; color: var(--muted); }
+.ts-cell b { font-size: 16px; }
+.ts-cell.ok b { color: #1E5B2E; } .ts-cell.err b { color: #B42318; }
+
+.ts-btn { font: inherit; text-align: left; background: none; border: 0; border-right: 1px solid var(--line); cursor: pointer; color: inherit; }
+.ts-btn:hover { background: var(--sunk); } .ts-btn span { color: var(--link); }
+.cost-stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--sunk); }
+.cost-stack span { display: block; height: 100%; }
+.cost-parts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cost-parts li { display: flex; gap: 8px; align-items: flex-start; }
+.cost-parts li > div { flex: 1; min-width: 0; } .cost-parts .sw { margin-top: 5px; flex: none; }
+.cost-parts .amt { white-space: nowrap; }
+
+/* usage page */
+.cap-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cap-table th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cap-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cap-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cap-table tr.unused td { color: var(--faint); }
+.cap-name { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+.usebar { display: inline-block; height: 6px; border-radius: 3px; background: var(--ink-2); vertical-align: middle; margin-right: 6px; }
+.empty { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--sunk); }
+.stack span { display: block; height: 100%; }
+.table-scroll { overflow-x: auto; }
+.err-n { color: var(--err-ink); }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.badge.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.badge.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.badge.err { background: var(--err-bg); color: var(--err-ink); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.row-between, .topbar { min-width: 0; } .tabs .tab { white-space: nowrap; }
 ~~~~~
 
 ~~~~~file path=ops/changes/REGISTRY.md

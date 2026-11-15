@@ -28,6 +28,7 @@ evals/                    Eval Suite: retrieval · analysis · regression, basel
 ops/                      Change Registry: issues · changes · experiments
 evolution/proposals/      자가 개선 제안
 traces/                   실행 기록 (git 제외)
+observability/            실행 기록 형식 · 흐름/비용 뷰어 · Langfuse 전송(선택)
 ci/                       check-harness (불변 원칙 검사), eval-gate (Baseline 비교)
 artifacts/                긴 산출물
 bootstrap/ → dist/        새 프로젝트 설치용 배포본
@@ -90,8 +91,10 @@ cp -R /path/to/agent-harness-template/dist/. /path/to/new-project/
 ## 검증
 
 ```bash
-node --test ci/*.test.mjs
+node --test ci/*.test.mjs observability/test/
 ```
+
+실행 기록 화면은 `node observability/viewer/server.mjs` (예시 기록: `node observability/demo.mjs`). [observability/INDEX.md](./observability/INDEX.md)
 
 ```bash
 node ci/check-harness.mjs

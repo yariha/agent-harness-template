@@ -2,3 +2,5 @@
 node_modules/
 traces/*
 !traces/.gitkeep
+.env
+deploy/langfuse/.env

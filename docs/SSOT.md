@@ -15,6 +15,7 @@
 ## 테스트 실행 규칙
 - <동시 워크트리 수와 테스트 러너 제약을 적는다. 예: 단위 테스트는 워커 2개 이하, 평가는 smoke 세트를 먼저 돌린다>
 - 하네스 무결성은 `node ci/check-harness.mjs`, 평가 게이트는 `node ci/eval-gate.mjs`로 확인한다.
+- 실행 기록 도구는 `node --test observability/test/`로 확인한다. Langfuse 키가 없어도 통과해야 한다.
 
 ## Source Map
 | 영역 | 코드 |
@@ -22,7 +23,8 @@
 | 에이전트(진화 대상) | `agent/` |
 | Knowledge Base | `knowledge/` |
 | 평가 | `evals/` |
-| 변경 추적·자가 개선 | `ops/`, `evolution/`, `traces/` |
+| 변경 추적·자가 개선 | `ops/`, `evolution/` |
+| 실행 기록·흐름 보기·비용 (LLMOps) | `observability/`, `traces/` |
 | <응용 코드 영역(에이전트를 부르는 서비스·CLI). 없으면 이 행 삭제> | `<경로>` |
 | 게이트 | `ci/` |
 | 작업 산출물 | `artifacts/*` |
@@ -47,4 +49,5 @@
 | AgentOps (지식·평가·변경 방법론) | [agentops/INDEX.md](./agentops/INDEX.md) |
 | 구조 수정 가이드 | [adaptation/INDEX.md](./adaptation/INDEX.md) |
 | 에이전트 구성·모델 배분 | [../agent/INDEX.md](../agent/INDEX.md) |
+| 실행 기록·흐름 보기·비용·Langfuse(선택) | [../observability/INDEX.md](../observability/INDEX.md) |
 | Workflow Tools | [tools/INDEX.md](./tools/INDEX.md) |

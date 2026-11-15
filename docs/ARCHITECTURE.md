@@ -14,6 +14,7 @@
 
 ## Core Flows
 - 런타임: 요청 → 목적 파악 → 조회 계획 → DB/RAG 조회 → 분석 → 답변 → Trace. <단계별 담당 파일>
+- 관측: 실행마다 `traces/<id>.json`(trigger·llm·tool·output span) → 뷰어(흐름·비용) → (선택) Langfuse. 형식은 `observability/TRACE_FORMAT.md`
 - 지식: Capture → Distill → Validate → Promote → Serve → Maintain
 - 변경: Signal → Eval Case → Change Record → Eval Gate → 채택/기각 → Distill
 - <프로젝트 고유 흐름 1~2개>
@@ -31,4 +32,5 @@
 | 모델 배분 | [../agent/MODELS.md](../agent/MODELS.md) |
 | Knowledge Base | [../knowledge/INDEX.md](../knowledge/INDEX.md) |
 | Eval Suite | [../evals/INDEX.md](../evals/INDEX.md) |
+| 실행 기록·LLMOps | [../observability/INDEX.md](../observability/INDEX.md) |
 | Workflow tools | [tools/INDEX.md](./tools/INDEX.md) |

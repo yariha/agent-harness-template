@@ -30,7 +30,8 @@
 | --- | --- | --- |
 | 평가 비용·시간이 크다 | 변경마다 전체 평가를 돌리기 어렵다 | 빠른 세트(smoke)와 전체 세트(full)로 나눈다. 변경마다 smoke, 채택 직전과 정기적으로 full을 돌린다. Change Record의 `eval_suite`에 어느 세트였는지 적는다. |
 | 기반 모델을 교체한다 | 모든 점수의 기준이 바뀐다 | 모델 교체 자체를 Change Record로 남기고 전체 평가 후 Baseline을 다시 잡는다. 이전 모델용 보정 지식·규칙이 아직 필요한지 `prune-harness`로 점검한다. |
-| 외부 LLMOps 도구를 도입한다 | 트레이스·평가 결과가 도구로 옮겨간다 | `traces/`와 `evals/results/`를 도구로 옮기되 Change Record ID를 실행 태그로 붙여 연결을 유지한다. Change Registry와 Knowledge Base는 저장소에 남긴다. |
+| 외부 LLMOps 도구를 도입한다 | 트레이스를 도구에서도 본다 | 기본 경로는 Langfuse(`observability/LANGFUSE.md`): 원본은 `traces/`에 두고 OTLP로 사본을 보낸다. 다른 도구도 OTLP를 받으면 `lib/otlp.mjs`를 그대로 쓴다. Change Record ID를 실행 태그로 붙여 연결을 유지한다. Change Registry와 Knowledge Base는 저장소에 남긴다. |
+| LLMOps 도구를 쓰지 않는다 | 없음 | Langfuse 키를 비워 둔다. 기록·뷰어·비용 내역은 로컬만으로 동작한다. |
 | 팀이 커진다 | 동시에 여러 변경이 진행된다 | 변경 하나에 가설 하나 원칙을 강제한다. KI와 Eval Case에 담당자 필드를 추가한다. Change Record ID 충돌을 막기 위해 번호를 브랜치 병합 시점에 확정한다. |
 
 ## 여기 없는 상황이면

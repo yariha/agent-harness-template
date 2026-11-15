@@ -1,6 +1,6 @@
 # HARNESS BOOTSTRAP — 프로젝트 하네스 설치 절차
 
-> 진입점 `CLAUDE.md`(설치 전 임시본)가 이 파일을 가리킨다. 키트 본체는 같은 폴더의 `kit.txt`(파일 96개, 2026-11-12 생성)이며, **Read로 열지 않고** 2단계 스크립트로만 푼다.
+> 진입점 `CLAUDE.md`(설치 전 임시본)가 이 파일을 가리킨다. 키트 본체는 같은 폴더의 `kit.txt`(파일 120개, 2026-11-15 생성)이며, **Read로 열지 않고** 2단계 스크립트로만 푼다.
 
 ---
 
@@ -24,6 +24,7 @@
 2. 문서 지도: `docs/SSOT.md`(60줄) → `docs/<영역>/INDEX.md`(60줄) → topic(100줄). 문서는 백과사전이 아니라 코드로 가는 지도다.
 3. 워크플로우 스킬: 본체 `docs/tools/<name>/SKILL.md`(사람 소유), 등록 `.claude/skills/<name>/SKILL.md`(2줄 shim).
 4. 가드레일: SSOT Core Principles(허락 필수 변경 등) + CI 게이트.
+7. 관측: 실행마다 `traces/`에 기록, `observability/viewer`로 흐름·비용을 보고, Langfuse는 선택. 시작 문서는 `observability/INDEX.md`.
 6. AgentOps: 자가진화 에이전트 개발용. `agent/`(진화 대상) · `knowledge/`(Knowledge Base 네 영역) · `evals/`(Eval Suite·Baseline) · `ops/`(Issue·Change Record) · `evolution/`(자가 개선 제안). `agent/` 변경에는 Change Record와 전후 평가가 따른다. 시작 문서는 `docs/agentops/INDEX.md`.
 5. 방법론(Boris Cherny): Task Brief 4요소(목표·가드레일·종료조건·검증수단), 검증 우선, 과설계 금지, 규칙은 2회 반복 실패 시에만, 모델 세대 교체 시 `prune-harness`.
 
@@ -104,6 +105,7 @@ SKIPPED 목록이 있으면 사용자에게 보여주고 병합 방법을 묻는
 4. **`docs/tools/open-worktree/SKILL.md`**: 환경 선택지와 env 파일 경로를 프로필대로 고정한다. 의존성 설치 명령 자리표시자를 실제 패키지 매니저 명령으로 채운다. DB가 없으면 DB 분기를 지운다.
 5. **`agent/MODELS.md`**: 기반 모델·판정 모델이 정해졌으면 표의 예시 행을 실제 행으로 바꾼다. 미정이면 예시 행을 지우고 `TODO(모델 배분)`를 남긴다.
 6. **`ci/`**: `check-harness.mjs`·`eval-gate.mjs`는 node만 있으면 스택과 무관하게 동작한다. 수정하지 않는다. node가 없는 환경이면 사용자에게 알리고 리포트의 TODO로 남긴다.
+6-1. **`observability/`**: 실행 기록 도구. `topology.json`의 노드 이름·역할·`match`를 이 프로젝트의 도구 이름(MCP 서버명, 내장 도구)에 맞춘다. 응용 코드가 있으면 실행마다 `observability/TRACE_FORMAT.md` 형식으로 `traces/`에 기록하게 하는 것을 리포트의 TODO로 남긴다(Node면 `lib/trace.mjs`를 그대로 쓴다). Langfuse는 권장이지만 묻지 않는다. 기본은 꺼짐이고 켜는 법은 `observability/LANGFUSE.md`.
 7. **`.claude/agents/code-generator.md`**: 예시의 도메인 표현만 프로젝트에 맞게 손본다. 모델·절차는 유지.
 8. **도메인 예시**: 템플릿의 예시 문장이 남은 곳을 이 프로젝트 도메인 예시로 바꾼다. 절차 문장은 바꾸지 않는다. 대상: `docs/tools/clarify-pre-spec/SKILL.md`의 "허용 질문 예시" 블록, `docs/tools/maintain-highway/selected-target.md`의 "기능/도메인: 예)" 줄, `.claude/agents/code-generator.md`의 description 예시(스택과 맞지 않으면 맥락도 함께). 확인: 5단계의 예시 문장 grep(`clarify-pre-spec` 블록).
 9. **방법론 파일**(`docs/tools/empirical-coding/**`, `docs/tools/prune-harness/**`, `docs/agentops/**`)과 AgentOps 스킬(`distill-knowledge`, `case-from-ki`, `log-change`, `run-evals`, `promote-evolution`, `review-knowledge`)은 수정하지 않는다. 범용이다.
@@ -127,7 +129,7 @@ SKIPPED 목록이 있으면 사용자에게 보여주고 병합 방법을 묻는
 grep -rn '<[^>]*>' docs/SSOT.md docs/*/INDEX.md docs/ARCHITECTURE.md agent/MODELS.md docs/tools/open-worktree/SKILL.md | grep -vE '<(topic|sub-topic|attachment|major|minor|patch|MAIN_AREA|SUB_AREA|date)>'
 wc -l docs/SSOT.md docs/*/INDEX.md                                   # 각 60 이하
 grep -rniE '일반 회원 목록|주문 기록은 관리 확인용|조직 관리자에게만' docs .claude || echo ok   # 템플릿 예시 문장 없음 (이 프로젝트 도메인과 같으면 결과를 눈으로 판단)
-node --test ci/*.test.mjs                                            # CI 장치 자체 테스트
+node --test ci/*.test.mjs observability/test/                        # CI 장치·실행 기록 도구 자체 테스트
 node ci/check-harness.mjs && node ci/eval-gate.mjs                   # 하네스 무결성, 평가 게이트(측정 전 통과)
 ```
 

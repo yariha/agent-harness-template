@@ -25,6 +25,7 @@
 러너는 스택에 맞게 프로젝트가 만든다. 지켜야 할 것은 출력 형식뿐이다.
 - 실행마다 `results/<run-id>.json`을 쓰고 `results/latest.json`을 갱신한다.
 - 형식: `{"run_id", "change", "measured_at", "suites": {"<suite>": {"score": 0~1, "n": 건수, "failed": ["<ID>"]}}}`
+- 권장: Suite마다 `cost_usd`(합)와 `avg_turns`를 함께 남긴다. 게이트는 보지 않지만 비용을 바꾸는 변경은 이것으로 판단한다(`observability/COSTS.md`).
 - `baseline.json`도 같은 `suites` 형식이다.
 
 ## Baseline

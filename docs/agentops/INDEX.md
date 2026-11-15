@@ -30,6 +30,7 @@
 - `evals/INDEX.md`: Eval Case 형식, 러너 계약, Baseline
 - `ops/changes/REGISTRY.md`: 변경 한 줄 요약표
 - `ci/check-harness.mjs`, `ci/eval-gate.mjs`: 불변 원칙을 기계로 확인
+- `observability/INDEX.md`: 실행 기록(Trace), 흐름·비용 화면, Langfuse(선택). 실패 신호가 Issue로 들어오는 입구
 
 ## Reference Map
 | 작업 범위 | 추가 참조 |
@@ -37,6 +38,7 @@
 | KI가 쌓이고 관리되는 방식 | [KNOWLEDGE_LIFECYCLE.md](./KNOWLEDGE_LIFECYCLE.md) |
 | 변경 한 건이 지나는 경로 | [CHANGE_LOOP.md](./CHANGE_LOOP.md) |
 | 분석 케이스로 지식 베이스를 처음 채우기 | [BOOTSTRAPPING.md](./BOOTSTRAPPING.md) |
+| 실행 기록·비용 보기 | [../../observability/INDEX.md](../../observability/INDEX.md) |
 | 용어 해설 | [GLOSSARY.md](./GLOSSARY.md) |
 | 시나리오별 구조 수정 | [../adaptation/INDEX.md](../adaptation/INDEX.md) |
 | 절차 스킬 | [../tools/INDEX.md](../tools/INDEX.md) |

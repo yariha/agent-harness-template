@@ -33,5 +33,6 @@
 | ADR | 구조·방식을 왜 그렇게 정했는지 남긴 결정 기록 | 회의 결정 사항 |
 | Rejected Experiment | 시도했지만 효과가 없어 기각한 변경 | "해 봤는데 안 됐음" 메모 |
 | Self-Improvement Proposal | 에이전트가 실행 중 배운 것을 반영하자고 올린 제안 | 신입의 업무 개선 제안서 |
-| Trace | 에이전트 실행 한 번의 기록 | 풀이 과정 |
+| Trace | 에이전트 실행 한 번의 기록. `traces/<id>.json` | 풀이 과정 |
+| Span | Trace 안의 한 단계(요청·모델 호출·도구 호출·응답) | 풀이의 한 줄 |
 | Traceability | Issue → Eval Case → Change Record → KI를 서로 따라갈 수 있는 성질 | 영수증처럼 근거를 거슬러 올라갈 수 있음 |
